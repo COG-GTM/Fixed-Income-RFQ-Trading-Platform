@@ -7,6 +7,7 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.PrePersist;
 import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
@@ -34,6 +35,13 @@ public class Counterparty {
 	private BigDecimal availableCredit;
 
 	public Counterparty() {
+	}
+
+	@PrePersist
+	private void initAvailableCredit() {
+		if (this.availableCredit == null && this.creditLimit != null) {
+			this.availableCredit = this.creditLimit;
+		}
 	}
 
 	public Counterparty(final String name, final String lei, final BigDecimal creditLimit) {
