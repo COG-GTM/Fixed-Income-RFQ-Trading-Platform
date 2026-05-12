@@ -3,8 +3,8 @@ package com.javieraviles.splitthemonolith;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
@@ -59,8 +59,7 @@ public class SplitTheMonolithApplication implements CommandLineRunner {
 
 	private RestTemplate createRestTemplate(final CloseableHttpClient httpClient) {
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
-		RestTemplate restTemplate = new RestTemplate(requestFactory);
-		return restTemplate;
+		return new RestTemplate(requestFactory);
 	}
 
 }
