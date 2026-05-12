@@ -1,157 +1,158 @@
-# split-the-monolith
-Everyday is getting more and more popular and, **sometimes**, worthy and useful -> **split a monolith into microservices**. In this repo I will show an example of how to split a monolith into microservices using the **Strangler Fig** and **Branch By Abstraction** patterns. It will take three stages. And of course, will introduce some cloud stack along the way, as this is as well something super common nowadays.
+# split-the-monolith — Fixed-Income RFQ Trading Platform
 
-There is a whole variety of technologies out there, for this example I will use:
+A practice project for learning how to **split a monolith into microservices** using the **Strangler Fig** and **Branch By Abstraction** patterns. The domain models a **fixed-income Request-for-Quote (RFQ) trading platform** inspired by MarketAxess.
+
+Technologies used:
  - SpringBoot (microservices themselves).
- - After split -> Docker, K8s, and NGINX as ingress proxy to redirect traffic to each ms.
+ - After split → Docker, K8s, and NGINX as ingress proxy to redirect traffic to each ms.
 
 Everything will be in the master branch, having a specific `tag` for each Phase once finished.
 
-- [split-the-monolith](#split-the-monolith)
+- [split-the-monolith — Fixed-Income RFQ Trading Platform](#split-the-monolith--fixed-income-rfq-trading-platform)
   - [Phase 1 - THE MONOLITH](#phase-1---the-monolith)
   - [Phase 2 - Applying STRANGLER FIG](#phase-2---applying-strangler-fig)
-    - [The new Microservice, OrdersMs](#the-new-microservice-ordersms)
+    - [The new Microservice, RFQMs](#the-new-microservice-rfqms)
     - [The proxy, NGINX as K8s Ingress](#the-proxy-nginx-as-k8s-ingress)
   - [Phase 3 - Applying BRANCH BY ABSTRACTION](#phase-3---applying-branch-by-abstraction)
 
 ## Phase 1 - THE MONOLITH
-This is a very simple SpringBoot project to dispatch `Orders`. Using H2 as database for simplicity, the main class will populate some data into the database on startup for testing purposes. A customer, a product and an order.
+This is a SpringBoot project simulating a fixed-income RFQ trading desk. Using H2 as an in-memory database for simplicity, the main class populates seed data on startup: one counterparty, one bond, and one executed RFQ.
 
-Three self-explaining entities:
- - **Customer**
+Three domain entities:
+ - **Counterparty**
    - name
-   - credit
- - **Product**
-   - name
-   - stock
- - **Order**
-   - customer (manyToOne)
-   - totalAmount
-   - product (manyToOne)
-   - productQuantity
+   - lei (Legal Entity Identifier)
+   - creditLimit (BigDecimal)
+   - availableCredit (BigDecimal)
+ - **Bond**
+   - isin (unique, e.g. US912828YK15)
+   - issuer
+   - couponRate (BigDecimal)
+   - maturityDate (LocalDate)
+   - availableNotional (BigDecimal — par amount available for trading)
+ - **RFQ** (Request for Quote)
+   - counterparty (manyToOne)
+   - bond (manyToOne)
+   - notionalAmount (BigDecimal — par amount requested)
+   - side (BUY / SELL)
+   - status (PENDING / QUOTED / EXECUTED / REJECTED)
+   - executionPrice (BigDecimal — total settlement amount)
+   - createdAt (Instant)
 
-REST api to create any of the aforementioned ones in `JSON` format. Have a look at `IntegrationTest.java` to see some use-cases.
+REST API to create any of the above in `JSON` format. Have a look at `IntegrationTest.java` to see the use-cases.
 
-Customer and Product have to be in place before creating an order. If not enough stock in the product or credit in the customer, an exception will be thrown. The core logic of the system is in the `OrderSaga.java` class which will attempt to create an Order in one transaction.
+Counterparty and Bond must be in place before executing an RFQ. If the bond has insufficient available notional or the counterparty has insufficient available credit, an exception will be thrown. The core logic is in `RFQExecutionSaga.java`, which attempts to execute an RFQ in a single transaction.
 
-Notice a PATCH method endpoint for both `Customer` and `Product` in their controllers to update credit/stock.
+Notice a PATCH method endpoint for both `Counterparty` and `Bond` in their controllers to update credit / notional inventory.
 
-Additionally, an email notification will be sent to a customer whenever the system adds some credit to the customer. Such notificatons are carried out via `NotificationService.java`. The implementation is not there, as it is not relevant here, so I will just log a message instead. BUT, it is still important the fact that the service exists as the **Branch By Abstraction** pattern will be applied over the notification feature.
+Additionally, a trade confirmation will be sent to a counterparty whenever credit is added. Such confirmations are carried out via `TradeConfirmationService.java`. The implementation simply logs a message. BUT, it is still important that the service exists as the **Branch By Abstraction** pattern will be applied over the trade confirmation feature.
 
-Simple nice and clean, why splitting right? well is just an example.
+### REST Endpoints
+
+| Method | Path                   | Description                                      |
+|--------|------------------------|--------------------------------------------------|
+| GET    | `/counterparties`      | List all counterparties                          |
+| POST   | `/counterparties`      | Create a counterparty                            |
+| GET    | `/counterparties/{id}` | Get a counterparty by ID                         |
+| PUT    | `/counterparties/{id}` | Update a counterparty                            |
+| PATCH  | `/counterparties/{id}` | Add or deduct credit (JSON: `amount`, `operation`) |
+| DELETE | `/counterparties/{id}` | Delete a counterparty                            |
+| GET    | `/bonds`               | List all bonds                                   |
+| POST   | `/bonds`               | Create a bond                                    |
+| GET    | `/bonds/{id}`          | Get a bond by ID                                 |
+| PUT    | `/bonds/{id}`          | Update a bond                                    |
+| PATCH  | `/bonds/{id}`          | Add or deduct notional (JSON: `amount`, `operation`) |
+| DELETE | `/bonds/{id}`          | Delete a bond                                    |
+| GET    | `/rfqs`                | List all RFQs                                    |
+| POST   | `/rfqs`                | Execute an RFQ                                   |
+| GET    | `/rfqs/{id}`           | Get an RFQ by ID                                 |
+| DELETE | `/rfqs/{id}`           | Delete an RFQ                                    |
+
+### Seed Data
+
+On startup the application loads:
+- **Counterparty**: Acme Asset Management (LEI: 549300EXAMPLE12345678, credit limit: $50,000,000)
+- **Bond**: US Treasury 2.75% 11/15/2030 (ISIN: US912828YK15, available notional: $100,000,000)
+- **RFQ**: BUY $5,000,000 notional at $4,987,500 — status EXECUTED
 
 ## Phase 2 - Applying STRANGLER FIG
-The goal here is to get some responsibilities out of the original monolith, so I want to extract the `orders` management into a separate microservice.
+The goal is to extract `RFQ` management out of the monolith into a separate **RFQ Microservice (RFQMs)**.
 
 Based on [Martin Fowler Strangler Fig post](https://martinfowler.com/bliki/StranglerFigApplication.html), we will "gradually create a new system around the edges of the old".
 
 ![Strangler Fig Pattern](https://raw.githubusercontent.com/javieraviles/split-the-monolith/master/images/strangler-fig.jpg)
 
-A proxy will still forward `/customers` and `/products` api requests to the monolith, but `/orders` should then go to the new microservice.
+A proxy will still forward `/counterparties` and `/bonds` API requests to the monolith, but `/rfqs` should go to the new microservice.
 
-Obviously, the new service will have to do some internal requests to the monolith, updating credit and stock of customers and products, and get some information; should handle orders in an independant DB, though. **The idea is we do not need to touch or modify the monolith**.
+### The new Microservice, RFQMs
+A separate SpringBoot project, containing DTOs for counterparty and bond, and one entity `Rfq.java`.
 
-### The new Microservice, OrdersMs
-A separate SpringBoot project, containing DTOs for customer and product, and one entity `Order.java`.
+Only one REST controller for RFQ will be created here, and again the core logic is in `RFQExecutionSaga.java` which will attempt to execute an RFQ. We can't use a single transaction as we do in the monolith, so will use a rest client which will attempt to get credit and notional from the monolith. If something goes wrong we will need to perform a compensation.
 
-Only one REST controller for Order will be created here, and again the core logic of the system is in the `OrderSaga.java` class which will attempt to create an Order. We can´t use a transaction as we do in the monolith, so will use a rest client which will attempt to get credit and stock from the monolith. If something goes wrong we will need to perform a compensation now.
-
-The idea is, even though the implementation is different, we will get the same exception for the same use cases, so the external api remains exactly the same. "Customer and Product have to be in place before creating an order. If not enough stock in the product or credit in the customer, an exception will be thrown".  Again have a look at `IntegrationTest.java` to see some use-cases.
-
-The monolith url will be set thorugh an environment variable so it's more flexible for us to set it later to a different value.
-
-This way we have a separate microservice ready to take all `/products` requests.
+The idea is, even though the implementation is different, we will get the same exceptions for the same use cases, so the external API remains exactly the same. "Counterparty and Bond have to be in place before executing an RFQ. If insufficient notional in the bond or credit in the counterparty, an exception will be thrown." Again have a look at `IntegrationTest.java` to see the use-cases.
 
 ### The proxy, NGINX as K8s Ingress
-If you are not familiar with kubernetes, the Ingress-NGINX implementation might not seem straightforward to you, but the underlaying NGINX functionality is still the same. It will just forward traffic to one microservice or another depending on the path. Let's have a look at the `k8s/ingress.yml`:
+The NGINX Ingress will route traffic to the monolith or the RFQ microservice depending on the path:
 
 ```
-apiVersion: extensions/v1beta1  
-kind: Ingress  
-metadata:  
-  name: split-the-monolith-ingress
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
-spec:  
+spec:
   rules:
   - host: split-the-monolith.com
     http:
       paths:
-      - path: /customers
+      - path: /counterparties
         backend:
           serviceName: monolith
           servicePort: 8080
-      - path: /products
+      - path: /bonds
         backend:
           serviceName: monolith
           servicePort: 8080
-      - path: /orders
+      - path: /rfqs
         backend:
-          serviceName: ordersms
+          serviceName: rfqms
           servicePort: 8090
 ```
 
-`Monolith` and `ordersms` have already been declared as services running in k8s respectively in `k8s/monolith.yaml` amd `k8s/ordersms.yaml`. I'm using minikube with Ingress addon as local dev environment, and setting `split-the-monolith.com` to my VM ip in my hosts file.
-
-Please note that both services had also been Dockerized including a `Dockerfile` into each project and it's been pushed to dockerhub so k8s yaml images can find them somewhere.
-
-Now is all set, functionality remains the same as in the monolith, and we have two microservices, each one taking care of a task, all behind a proxy, nice!!
-
-In order to have some **"end to end"** tests, not only integration tests on each microservice, I've added a Postman collection in the `e2e` directory, which can be run against a classic local environment, starting up both microservices from your IDE in localhost (here tell postman collection to use the `env/LocalDev.json` environment file) or against a local k8s using ingress (here tell postman collection to use the `env/K8sDev.json` environment file).
-
-Use Newman to easily execute them:
-
-```
-npm install -g Newman
-
-newman run e2e/split-the-monolith.postman_collection.json -k -e e2e/env/K8sDev.postman_environment.json
-
-```
-
 ## Phase 3 - Applying BRANCH BY ABSTRACTION
-Remember the `NotificationService` in the monolith? well, that could very well be another microservice, just in charge of sending notifications, so the monolith does not need to have such responsibility anymore. Would be nice to spin up the new microservice and gradually switch notifications generation from monolith to this new service, using a [feature toggle](https://martinfowler.com/articles/feature-toggles.html).
+Remember the `TradeConfirmationService` in the monolith? That could very well be another microservice, just in charge of sending trade confirmations, so the monolith does not need to have such responsibility anymore. We can spin up the new microservice and gradually switch confirmation generation from monolith to this new service, using a [feature toggle](https://martinfowler.com/articles/feature-toggles.html).
 
 Based on [Martin Fowler Branch by Abstraction post](https://martinfowler.com/bliki/BranchByAbstraction.html), "While we are building the new feature we can use FeatureToggles to run the new supplier in test environments and compare its behavior to the flawed supplier".
 
 ![Branch by Abstraction Pattern](https://raw.githubusercontent.com/javieraviles/split-the-monolith/master/images/branch-by-abstraction.png)
 
-And so we will do in this phase 3. After creating another SpringBoot project, the simplest one (`NotificationController` to receive a POST for notifications creation, calling a service that actually sends the notification), we will then introduce a `feature toggle` in the monolith. This way, when some credit is added to a user, depending on the value of the feature toggle, the notification will get sent through the monolith implementation (still there) or through the new service (the monolith will trigger a POST to /notificationsmsUrl) so the new microservice takes care of this.
+After creating another SpringBoot project (a simple `ConfirmationController` to receive a POST for confirmation creation, calling a service that sends the trade confirmation), we will introduce a `feature toggle` in the monolith. When credit is added to a counterparty, depending on the value of the feature toggle, the confirmation will get sent through the monolith implementation (still there) or through the new service (the monolith will trigger a POST to the confirmation microservice URL).
 
-For us the feature toggle will just be an application.property called `use.notification.service`, containing a boolean:
+For us the feature toggle is an application.property called `use.confirmation.service`, containing a boolean:
 
-```
-@Value(value = "${use.notification.service}")
-private boolean useNotificationService;
+```java
+@Value(value = "${use.confirmation.service}")
+private boolean useConfirmationService;
 
 ...
 
-
-if (useNotificationService) {
+if (useConfirmationService) {
   // rest call to new microservice
-  notificationsMsClient.sendNotification(notification);
+  confirmationMsClient.sendConfirmation(confirmation);
 } else {
-  // monolith sends the notificaton itself
-  notificationService.sendEmailNotification(notification);
+  // monolith sends the confirmation itself
+  tradeConfirmationService.sendTradeConfirmation(confirmation);
 }
 ```
 
-This way, the k8s deployment yaml for the monolith will now contain an environment variable that will override the feature toggle value per environment:
+This way, the k8s deployment yaml for the monolith will contain an environment variable that will override the feature toggle value per environment:
 
-```
+```yaml
 - env:
-  - name: NOTIFICATIONSMS_URL
-    value: http://notificationsms:8070
-  - name: USE_NOTIFICATION_SERVICE
+  - name: CONFIRMATIONMS_URL
+    value: http://confirmationms:8070
+  - name: USE_CONFIRMATION_SERVICE
     value: "true"
   image: javieraviles/monolith
   name: monolith
   imagePullPolicy: Always
   ports:
     - containerPort: 8080
-  securityContext:
-    allowPrivilegeEscalation: false
 ```
 
-So operations will have now the option to configure whether to use this external notifications service or not from there. The idea is to reach a point where no more clients are using the original monolith notifications feature so it can be removed.
-
-An additional `k8s/notificationsms.yaml` file has been added to deploy the new microservice. Please note the `type: ClusterIP` in there, as this notifications microservice does not need to get any external traffic, will only receieve internal requests.
+So operations will have the option to configure whether to use this external trade confirmation service or not. The idea is to reach a point where no more clients are using the original monolith confirmation feature so it can be removed.
