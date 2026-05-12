@@ -9,20 +9,20 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
-import com.javieraviles.splitthemonolith.dto.NotificationDto;
+import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 
 @Component
-public class NotificationsMicroserviceClient {
+public class TradeConfirmationMicroserviceClient {
 
-	@Value(value = "${notificationsms.url}")
-	private String notificationsMsBaseUri;
+	@Value(value = "${confirmationms.url}")
+	private String confirmationMsBaseUri;
 
 	@Autowired
 	private RestTemplate restTemplate;
 
-	public void sendNotification(final NotificationDto notification) {
-		HttpEntity<NotificationDto> requestEntity = new HttpEntity<>(notification, getJsonHeaders());
-		restTemplate.exchange(notificationsMsBaseUri + "notifications/", HttpMethod.POST, requestEntity, String.class);
+	public void sendConfirmation(final TradeConfirmationDto confirmation) {
+		HttpEntity<TradeConfirmationDto> requestEntity = new HttpEntity<>(confirmation, getJsonHeaders());
+		restTemplate.exchange(confirmationMsBaseUri + "confirmations/", HttpMethod.POST, requestEntity, String.class);
 	}
 
 	private HttpHeaders getJsonHeaders() {

@@ -3,7 +3,7 @@ package com.javieraviles.splitthemonolith.exception;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = "Not enough stock")
-public class NotEnoughStockException extends RuntimeException {
+@ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = "Insufficient credit")
+public class InsufficientCreditException extends RuntimeException {
 
 }
