@@ -4,14 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.apache.catalina.util.ServerInfo;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
 /**
  * Regression test for COG-427 / SNYK-JAVA-ORGAPACHETOMCATEMBED-8547999.
  * Ensures the embedded Tomcat version is at least 9.0.98, which contains
  * the fix for the CWE-367 TOCTOU race condition (CVSS 9.2).
  */
-@SpringBootTest
 public class TomcatVersionSecurityTest {
 
 	private static final int REQUIRED_MAJOR = 9;
