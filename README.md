@@ -1,6 +1,6 @@
 # Fixed-Income RFQ Trading Platform
 
-A SpringBoot monolith simulating a **fixed-income Request-for-Quote (RFQ) trading platform** inspired by MarketAxess.
+A SpringBoot monolith simulating a **fixed-income Request-for-Quote (RFQ) trading platform**.
 
 Technologies used:
  - Java 11, Spring Boot, Spring Data JPA
