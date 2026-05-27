@@ -1,6 +1,7 @@
 package com.javieraviles.splitthemonolith;
 
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -265,8 +266,8 @@ public class RfqExecutionSagaBoundaryTest {
 		JsonNode cpNode = MAPPER.readTree(cpResult.getResponse().getContentAsString());
 		BigDecimal remainingCredit = cpNode.get("availableCredit").decimalValue();
 
-		assert remainingCredit.compareTo(BigDecimal.ZERO) >= 0 :
-				"Credit must never go negative; got " + remainingCredit;
+		assertTrue(remainingCredit.compareTo(BigDecimal.ZERO) >= 0,
+				"Credit must never go negative; got " + remainingCredit);
 	}
 
 	@Test
