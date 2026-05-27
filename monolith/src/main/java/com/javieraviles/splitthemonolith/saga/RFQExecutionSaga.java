@@ -4,7 +4,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.javieraviles.splitthemonolith.client.TradeConfirmationClient;
 import com.javieraviles.splitthemonolith.dto.RfqDto;
+import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 import com.javieraviles.splitthemonolith.entity.Bond;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Rfq;
@@ -26,6 +28,9 @@ public class RFQExecutionSaga {
 	@Autowired
 	private BondRepository bondRepository;
 
+	@Autowired
+	private TradeConfirmationClient tradeConfirmationClient;
+
 	@Transactional
 	public Rfq executeRfq(final RfqDto rfqDto) {
 
@@ -42,7 +47,12 @@ public class RFQExecutionSaga {
 		 */
 		counterparty.deductCredit(rfqDto.getExecutionPrice());
 
-		return rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
+		final Rfq rfq = rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
 				rfqDto.getSide(), RfqStatus.EXECUTED, rfqDto.getExecutionPrice()));
+
+		tradeConfirmationClient.sendConfirmation(
+				new TradeConfirmationDto(counterparty.getName(), rfqDto.getExecutionPrice()));
+
+		return rfq;
 	}
 }

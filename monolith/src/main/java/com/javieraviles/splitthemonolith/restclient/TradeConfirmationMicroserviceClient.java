@@ -11,6 +11,11 @@ import org.springframework.web.client.RestTemplate;
 
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 
+/**
+ * @deprecated v1 REST client. Replaced by
+ * {@link com.javieraviles.splitthemonolith.client.RestTradeConfirmationClient}.
+ */
+@Deprecated
 @Component
 public class TradeConfirmationMicroserviceClient {
 

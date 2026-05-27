@@ -6,6 +6,11 @@ import org.springframework.stereotype.Component;
 
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 
+/**
+ * @deprecated v1 direct-invocation service. Use
+ * {@link com.javieraviles.splitthemonolith.client.TradeConfirmationClient} instead.
+ */
+@Deprecated
 @Component
 public class TradeConfirmationService {
 
