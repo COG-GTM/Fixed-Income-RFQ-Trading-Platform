@@ -42,6 +42,9 @@ public class RFQExecutionSaga {
 		 */
 		counterparty.deductCredit(rfqDto.getExecutionPrice());
 
+		bondRepository.save(bond);
+		counterpartyRepository.save(counterparty);
+
 		return rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
 				rfqDto.getSide(), RfqStatus.EXECUTED, rfqDto.getExecutionPrice()));
 	}
