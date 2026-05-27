@@ -1,6 +1,7 @@
 package com.javieraviles.splitthemonolith.saga;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +10,7 @@ import com.javieraviles.splitthemonolith.entity.Bond;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Rfq;
 import com.javieraviles.splitthemonolith.entity.RfqStatus;
+import com.javieraviles.splitthemonolith.event.TradeExecutedEvent;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
@@ -26,6 +28,9 @@ public class RFQExecutionSaga {
 	@Autowired
 	private BondRepository bondRepository;
 
+	@Autowired
+	private ApplicationEventPublisher eventPublisher;
+
 	@Transactional
 	public Rfq executeRfq(final RfqDto rfqDto) {
 
@@ -42,7 +47,12 @@ public class RFQExecutionSaga {
 		 */
 		counterparty.deductCredit(rfqDto.getExecutionPrice());
 
-		return rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
+		final Rfq rfq = rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
 				rfqDto.getSide(), RfqStatus.EXECUTED, rfqDto.getExecutionPrice()));
+
+		eventPublisher.publishEvent(
+				new TradeExecutedEvent(this, counterparty.getName(), rfqDto.getExecutionPrice()));
+
+		return rfq;
 	}
 }
