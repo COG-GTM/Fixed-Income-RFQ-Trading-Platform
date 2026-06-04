@@ -11,6 +11,7 @@ import javax.persistence.Id;
 import javax.validation.constraints.PositiveOrZero;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientNotionalException;
+import com.javieraviles.splitthemonolith.exception.InvalidAmountException;
 
 @Entity(name = "bonds")
 public class Bond {
@@ -46,14 +47,22 @@ public class Bond {
 	}
 
 	public void addNotional(final BigDecimal amount) {
+		requirePositive(amount);
 		this.availableNotional = this.availableNotional.add(amount);
 	}
 
 	public void deductNotional(final BigDecimal amount) {
+		requirePositive(amount);
 		if (amount.compareTo(this.availableNotional) > 0) {
 			throw new InsufficientNotionalException();
 		}
 		this.availableNotional = this.availableNotional.subtract(amount);
+	}
+
+	private static void requirePositive(final BigDecimal amount) {
+		if (amount == null || amount.signum() <= 0) {
+			throw new InvalidAmountException("Notional amount must be positive");
+		}
 	}
 
 	public long getId() {
