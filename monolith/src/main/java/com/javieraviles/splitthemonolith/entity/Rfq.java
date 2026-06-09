@@ -25,9 +25,8 @@ public class Rfq {
 	private long id;
 
 	@NotNull
-	@ManyToOne(fetch = FetchType.EAGER)
-	@JoinColumn(name = "counterparty_id")
-	private Counterparty counterparty;
+	@Column(name = "counterparty_id")
+	private long counterpartyId;
 
 	@NotNull
 	@ManyToOne(fetch = FetchType.EAGER)
@@ -56,9 +55,9 @@ public class Rfq {
 	public Rfq() {
 	}
 
-	public Rfq(final Counterparty counterparty, final Bond bond, final BigDecimal notionalAmount,
+	public Rfq(final long counterpartyId, final Bond bond, final BigDecimal notionalAmount,
 			final Side side, final RfqStatus status, final BigDecimal executionPrice) {
-		this.counterparty = counterparty;
+		this.counterpartyId = counterpartyId;
 		this.bond = bond;
 		this.notionalAmount = notionalAmount;
 		this.side = side;
@@ -75,12 +74,12 @@ public class Rfq {
 		return id;
 	}
 
-	public Counterparty getCounterparty() {
-		return counterparty;
+	public long getCounterpartyId() {
+		return counterpartyId;
 	}
 
-	public void setCounterparty(final Counterparty counterparty) {
-		this.counterparty = counterparty;
+	public void setCounterpartyId(final long counterpartyId) {
+		this.counterpartyId = counterpartyId;
 	}
 
 	public Bond getBond() {

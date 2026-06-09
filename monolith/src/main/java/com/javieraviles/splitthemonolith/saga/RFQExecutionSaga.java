@@ -6,13 +6,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.javieraviles.splitthemonolith.dto.RfqDto;
 import com.javieraviles.splitthemonolith.entity.Bond;
-import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Rfq;
 import com.javieraviles.splitthemonolith.entity.RfqStatus;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
-import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.repository.RfqRepository;
+import com.javieraviles.splitthemonolith.restclient.CounterpartyServiceProxy;
 
 @Component
 public class RFQExecutionSaga {
@@ -21,7 +20,7 @@ public class RFQExecutionSaga {
 	private RfqRepository rfqRepository;
 
 	@Autowired
-	private CounterpartyRepository counterpartyRepository;
+	private CounterpartyServiceProxy counterpartyServiceProxy;
 
 	@Autowired
 	private BondRepository bondRepository;
@@ -31,18 +30,14 @@ public class RFQExecutionSaga {
 
 		final Bond bond = bondRepository.findById(rfqDto.getBondId())
 				.orElseThrow(() -> new ResourceNotFoundException());
-		final Counterparty counterparty = counterpartyRepository.findById(rfqDto.getCounterpartyId())
-				.orElseThrow(() -> new ResourceNotFoundException());
+
+		counterpartyServiceProxy.validateCounterparty(rfqDto.getCounterpartyId());
 
 		bond.deductNotional(rfqDto.getNotionalAmount());
-		/*
-		 * This is all part of one transaction due to @Transactional annotation.
-		 * No need for saga compensation as credit will only be deducted if the
-		 * bond had sufficient available notional.
-		 */
-		counterparty.deductCredit(rfqDto.getExecutionPrice());
 
-		return rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
+		counterpartyServiceProxy.deductCredit(rfqDto.getCounterpartyId(), rfqDto.getExecutionPrice());
+
+		return rfqRepository.save(new Rfq(rfqDto.getCounterpartyId(), bond, rfqDto.getNotionalAmount(),
 				rfqDto.getSide(), RfqStatus.EXECUTED, rfqDto.getExecutionPrice()));
 	}
 }
