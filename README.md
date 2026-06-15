@@ -3,7 +3,7 @@
 A SpringBoot monolith simulating a **fixed-income Request-for-Quote (RFQ) trading platform**.
 
 Technologies used:
- - Java 11, Spring Boot, Spring Data JPA
+ - Java 21, Spring Boot 3, Spring Data JPA
  - H2 in-memory database
  - Maven
 
