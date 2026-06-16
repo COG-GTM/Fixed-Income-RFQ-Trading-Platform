@@ -19,11 +19,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.javieraviles.counterpartycredit.CounterpartyCreditService;
+import com.javieraviles.counterpartycredit.domain.Counterparty;
 import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
-import com.javieraviles.splitthemonolith.entity.Counterparty;
-import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
-import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
 import com.javieraviles.splitthemonolith.service.TradeConfirmationService;
 
@@ -34,7 +33,7 @@ class CounterpartyController {
 	private boolean useConfirmationService;
 
 	@Autowired
-	private CounterpartyRepository repository;
+	private CounterpartyCreditService counterpartyCreditService;
 
 	@Autowired
 	private TradeConfirmationService tradeConfirmationService;
@@ -44,41 +43,33 @@ class CounterpartyController {
 
 	@GetMapping("/counterparties")
 	List<Counterparty> getAll() {
-		return repository.findAll();
+		return counterpartyCreditService.findAll();
 	}
 
 	@PostMapping("/counterparties")
 	ResponseEntity<Counterparty> createCounterparty(@RequestBody Counterparty newCounterparty) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(newCounterparty));
+		return ResponseEntity.status(HttpStatus.CREATED).body(counterpartyCreditService.create(newCounterparty));
 	}
 
 	@GetMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> getOne(@PathVariable Long id) {
-		final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
-		return ResponseEntity.ok(counterparty);
+		return ResponseEntity.ok(counterpartyCreditService.findById(id));
 	}
 
 	@PutMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> updateCounterparty(@RequestBody Counterparty updatedCounterparty, @PathVariable Long id) {
-		final Counterparty counterparty = repository.findById(id).map(c -> {
-			c.setName(updatedCounterparty.getName());
-			c.setLei(updatedCounterparty.getLei());
-			c.setCreditLimit(updatedCounterparty.getCreditLimit());
-			c.setAvailableCredit(updatedCounterparty.getAvailableCredit());
-			return repository.save(c);
-		}).orElseThrow(() -> new ResourceNotFoundException());
-		return ResponseEntity.ok(counterparty);
+		return ResponseEntity.ok(counterpartyCreditService.update(id, updatedCounterparty));
 	}
 
 	@RequestMapping(value = "/counterparties/{id}", method = RequestMethod.PATCH, consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> partialUpdateGeneric(@RequestBody Map<String, String> creditUpdate,
 			@PathVariable("id") Long id) {
 		try {
-			final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
 			final BigDecimal creditAmount = new BigDecimal(creditUpdate.get("amount"));
 			final OperationEnum operation = OperationEnum.valueOf(creditUpdate.get("operation"));
+			final Counterparty counterparty;
 			if (operation == OperationEnum.ADD) {
-				counterparty.addCredit(creditAmount);
+				counterparty = counterpartyCreditService.addCredit(id, creditAmount);
 				final TradeConfirmationDto confirmation = new TradeConfirmationDto(counterparty.getName(), creditAmount);
 				if (useConfirmationService) {
 					confirmationMsClient.sendConfirmation(confirmation);
@@ -86,9 +77,9 @@ class CounterpartyController {
 					tradeConfirmationService.sendTradeConfirmation(confirmation);
 				}
 			} else {
-				counterparty.deductCredit(creditAmount);
+				counterparty = counterpartyCreditService.deductCredit(id, creditAmount);
 			}
-			return ResponseEntity.ok(repository.save(counterparty));
+			return ResponseEntity.ok(counterparty);
 		} catch (final IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body("wrong operation");
 		}
@@ -96,6 +87,6 @@ class CounterpartyController {
 
 	@DeleteMapping("/counterparties/{id}")
 	void deleteCounterparty(@PathVariable Long id) {
-		repository.deleteById(id);
+		counterpartyCreditService.delete(id);
 	}
 }

@@ -4,14 +4,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.javieraviles.counterpartycredit.CounterpartyCreditService;
+import com.javieraviles.counterpartycredit.domain.Counterparty;
 import com.javieraviles.splitthemonolith.dto.RfqDto;
 import com.javieraviles.splitthemonolith.entity.Bond;
-import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Rfq;
 import com.javieraviles.splitthemonolith.entity.RfqStatus;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
-import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.repository.RfqRepository;
 
 @Component
@@ -21,7 +21,7 @@ public class RFQExecutionSaga {
 	private RfqRepository rfqRepository;
 
 	@Autowired
-	private CounterpartyRepository counterpartyRepository;
+	private CounterpartyCreditService counterpartyCreditService;
 
 	@Autowired
 	private BondRepository bondRepository;
@@ -31,16 +31,21 @@ public class RFQExecutionSaga {
 
 		final Bond bond = bondRepository.findById(rfqDto.getBondId())
 				.orElseThrow(() -> new ResourceNotFoundException());
-		final Counterparty counterparty = counterpartyRepository.findById(rfqDto.getCounterpartyId())
-				.orElseThrow(() -> new ResourceNotFoundException());
+		// Counterparty existence and credit are owned by the Counterparty Credit
+		// bounded context and reached only through its service seam.
+		final Counterparty counterparty = counterpartyCreditService.findById(rfqDto.getCounterpartyId());
 
 		bond.deductNotional(rfqDto.getNotionalAmount());
 		/*
-		 * This is all part of one transaction due to @Transactional annotation.
-		 * No need for saga compensation as credit will only be deducted if the
-		 * bond had sufficient available notional.
+		 * The credit deduction is delegated to the counterparty credit service.
+		 * The in-process adapter joins this @Transactional method (propagation
+		 * REQUIRED), so the bond notional update and the credit deduction remain
+		 * atomic: if either fails the whole RFQ execution rolls back, exactly as
+		 * before the extraction. See docs/counterparty-credit-extraction.md for
+		 * the eventual-consistency tradeoffs once this context is split onto its
+		 * own database.
 		 */
-		counterparty.deductCredit(rfqDto.getExecutionPrice());
+		counterpartyCreditService.deductCredit(counterparty.getId(), rfqDto.getExecutionPrice());
 
 		return rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
 				rfqDto.getSide(), RfqStatus.EXECUTED, rfqDto.getExecutionPrice()));

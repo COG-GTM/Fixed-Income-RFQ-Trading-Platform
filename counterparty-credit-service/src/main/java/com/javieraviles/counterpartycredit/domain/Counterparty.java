@@ -1,4 +1,4 @@
-package com.javieraviles.splitthemonolith.entity;
+package com.javieraviles.counterpartycredit.domain;
 
 import java.math.BigDecimal;
 
@@ -11,7 +11,7 @@ import javax.persistence.PrePersist;
 import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
-import com.javieraviles.splitthemonolith.exception.InsufficientCreditException;
+import com.javieraviles.counterpartycredit.exception.InsufficientCreditException;
 
 @Entity(name = "counterparties")
 public class Counterparty {
