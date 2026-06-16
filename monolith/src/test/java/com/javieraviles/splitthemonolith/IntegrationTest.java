@@ -13,9 +13,9 @@ import java.time.LocalDate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.javieraviles.counterpartycredit.domain.Counterparty;
 import com.javieraviles.splitthemonolith.dto.RfqDto;
 import com.javieraviles.splitthemonolith.entity.Bond;
-import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Side;
 
 import org.junit.jupiter.api.Test;

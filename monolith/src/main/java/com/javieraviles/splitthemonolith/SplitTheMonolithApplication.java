@@ -9,24 +9,32 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
+import com.javieraviles.counterpartycredit.CounterpartyCreditService;
+import com.javieraviles.counterpartycredit.domain.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Bond;
-import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Rfq;
 import com.javieraviles.splitthemonolith.entity.RfqStatus;
 import com.javieraviles.splitthemonolith.entity.Side;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
-import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.repository.RfqRepository;
 
-@SpringBootApplication
+// Component/entity/repository scanning is broadened to cover the extracted
+// Counterparty Credit bounded context, which lives outside the monolith's base
+// package. This is the in-process composition root of the strangler-fig step.
+@SpringBootApplication(scanBasePackages = { "com.javieraviles.splitthemonolith",
+		"com.javieraviles.counterpartycredit" })
+@EntityScan(basePackages = { "com.javieraviles.splitthemonolith", "com.javieraviles.counterpartycredit" })
+@EnableJpaRepositories(basePackages = { "com.javieraviles.splitthemonolith", "com.javieraviles.counterpartycredit" })
 public class SplitTheMonolithApplication implements CommandLineRunner {
 
 	@Autowired
-	CounterpartyRepository counterpartyRepository;
+	CounterpartyCreditService counterpartyCreditService;
 
 	@Autowired
 	BondRepository bondRepository;
@@ -45,9 +53,9 @@ public class SplitTheMonolithApplication implements CommandLineRunner {
 		final Bond ustNote = new Bond("US912828YK15", "US Treasury",
 				new BigDecimal("2.7500"), LocalDate.of(2030, 11, 15),
 				new BigDecimal("100000000.00"));
-		counterpartyRepository.save(acme);
+		final Counterparty savedAcme = counterpartyCreditService.create(acme);
 		bondRepository.save(ustNote);
-		rfqRepository.save(new Rfq(acme, ustNote, new BigDecimal("5000000.00"),
+		rfqRepository.save(new Rfq(savedAcme, ustNote, new BigDecimal("5000000.00"),
 				Side.BUY, RfqStatus.EXECUTED, new BigDecimal("4987500.00")));
 	}
 

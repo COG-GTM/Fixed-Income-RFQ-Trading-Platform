@@ -39,6 +39,13 @@ Three domain entities:
 
 Counterparty and Bond must be in place before executing an RFQ. If the bond has insufficient available notional or the counterparty has insufficient available credit, an exception will be thrown. The core logic is in `RFQExecutionSaga.java`, which attempts to execute an RFQ in a single transaction.
 
+## Modules
+
+The project is a multi-module Maven build (Strangler Fig decomposition in progress):
+
+- **`counterparty-credit-service`** — the extracted **Counterparty Credit** bounded context. Owns the `counterparties` table (credit limits, available credit, LEI resolution) and exposes the `CounterpartyCreditService` seam. See [docs/counterparty-credit-extraction.md](docs/counterparty-credit-extraction.md).
+- **`monolith`** — RFQ trading, bond inventory, and the execution saga. Calls the counterparty credit context only through the `CounterpartyCreditService` interface (in-process adapter today, network-ready later).
+
 A PATCH method endpoint exists for both `Counterparty` and `Bond` controllers to update credit / notional inventory.
 
 A trade confirmation is sent to a counterparty whenever credit is added, handled by `TradeConfirmationService.java`.
@@ -74,17 +81,19 @@ On startup the application loads:
 ## Running the Application
 
 ```bash
-cd monolith
-./mvnw spring-boot:run
+./mvnw -pl monolith -am spring-boot:run
 ```
 
 The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints.
 
 ## Testing
 
+Build and test the whole reactor from the repository root:
+
 ```bash
-cd monolith
 ./mvnw clean test
+# or, equivalently
+mvn -q -DskipTests=false test
 ```
 
 See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
