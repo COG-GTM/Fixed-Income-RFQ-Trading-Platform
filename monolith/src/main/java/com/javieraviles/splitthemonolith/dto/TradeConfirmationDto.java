@@ -2,7 +2,7 @@ package com.javieraviles.splitthemonolith.dto;
 
 import java.math.BigDecimal;
 
-import javax.validation.constraints.Positive;
+import jakarta.validation.constraints.Positive;
 
 public class TradeConfirmationDto {
 
