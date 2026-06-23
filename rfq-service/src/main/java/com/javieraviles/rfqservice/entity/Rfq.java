@@ -1,16 +1,24 @@
-package com.javieraviles.splitthemonolith.dto;
+package com.javieraviles.rfqservice.entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.PrePersist;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Positive;
 
-import com.javieraviles.splitthemonolith.entity.RfqStatus;
-import com.javieraviles.splitthemonolith.entity.Side;
+@Entity(name = "rfqs")
+public class Rfq {
 
-public class RfqDto {
-
+	@Id
+	@GeneratedValue(strategy = GenerationType.AUTO)
 	private long id;
 
 	@NotNull
@@ -20,31 +28,40 @@ public class RfqDto {
 	private long bondId;
 
 	@Positive
+	@Column(precision = 19, scale = 2)
 	private BigDecimal notionalAmount;
 
 	@NotNull
+	@Enumerated(EnumType.STRING)
 	private Side side;
 
+	@NotNull
+	@Enumerated(EnumType.STRING)
 	private RfqStatus status;
 
 	@Positive
+	@Column(precision = 19, scale = 2)
 	private BigDecimal executionPrice;
 
+	@Column(updatable = false)
 	private Instant createdAt;
 
-	public RfqDto() {
+	public Rfq() {
 	}
 
-	public RfqDto(long id, long counterpartyId, long bondId, BigDecimal notionalAmount,
-			Side side, RfqStatus status, BigDecimal executionPrice, Instant createdAt) {
-		this.id = id;
+	public Rfq(final long counterpartyId, final long bondId, final BigDecimal notionalAmount,
+			final Side side, final RfqStatus status, final BigDecimal executionPrice) {
 		this.counterpartyId = counterpartyId;
 		this.bondId = bondId;
 		this.notionalAmount = notionalAmount;
 		this.side = side;
 		this.status = status;
 		this.executionPrice = executionPrice;
-		this.createdAt = createdAt;
+	}
+
+	@PrePersist
+	protected void onCreate() {
+		this.createdAt = Instant.now();
 	}
 
 	public long getId() {
@@ -55,7 +72,7 @@ public class RfqDto {
 		return counterpartyId;
 	}
 
-	public void setCounterpartyId(long counterpartyId) {
+	public void setCounterpartyId(final long counterpartyId) {
 		this.counterpartyId = counterpartyId;
 	}
 
@@ -63,7 +80,7 @@ public class RfqDto {
 		return bondId;
 	}
 
-	public void setBondId(long bondId) {
+	public void setBondId(final long bondId) {
 		this.bondId = bondId;
 	}
 
@@ -101,9 +118,5 @@ public class RfqDto {
 
 	public Instant getCreatedAt() {
 		return createdAt;
-	}
-
-	public void setCreatedAt(final Instant createdAt) {
-		this.createdAt = createdAt;
 	}
 }

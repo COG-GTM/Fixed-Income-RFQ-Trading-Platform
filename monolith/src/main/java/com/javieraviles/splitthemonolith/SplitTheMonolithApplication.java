@@ -15,12 +15,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.javieraviles.splitthemonolith.entity.Bond;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
-import com.javieraviles.splitthemonolith.entity.Rfq;
-import com.javieraviles.splitthemonolith.entity.RfqStatus;
-import com.javieraviles.splitthemonolith.entity.Side;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
-import com.javieraviles.splitthemonolith.repository.RfqRepository;
 
 @SpringBootApplication
 public class SplitTheMonolithApplication implements CommandLineRunner {
@@ -30,9 +26,6 @@ public class SplitTheMonolithApplication implements CommandLineRunner {
 
 	@Autowired
 	BondRepository bondRepository;
-
-	@Autowired
-	RfqRepository rfqRepository;
 
 	public static void main(String[] args) {
 		SpringApplication.run(SplitTheMonolithApplication.class, args);
@@ -47,8 +40,6 @@ public class SplitTheMonolithApplication implements CommandLineRunner {
 				new BigDecimal("100000000.00"));
 		counterpartyRepository.save(acme);
 		bondRepository.save(ustNote);
-		rfqRepository.save(new Rfq(acme, ustNote, new BigDecimal("5000000.00"),
-				Side.BUY, RfqStatus.EXECUTED, new BigDecimal("4987500.00")));
 	}
 
 	@Bean

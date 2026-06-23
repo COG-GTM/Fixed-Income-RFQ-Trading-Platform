@@ -1,4 +1,4 @@
-package com.javieraviles.splitthemonolith.controller;
+package com.javieraviles.rfqservice.controller;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.javieraviles.splitthemonolith.dto.RfqDto;
-import com.javieraviles.splitthemonolith.entity.Rfq;
-import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
-import com.javieraviles.splitthemonolith.repository.RfqRepository;
-import com.javieraviles.splitthemonolith.saga.RFQExecutionSaga;
+import com.javieraviles.rfqservice.dto.RfqDto;
+import com.javieraviles.rfqservice.entity.Rfq;
+import com.javieraviles.rfqservice.exception.ResourceNotFoundException;
+import com.javieraviles.rfqservice.repository.RfqRepository;
+import com.javieraviles.rfqservice.saga.RFQExecutionSaga;
 
 @RestController
 class RfqController {
@@ -51,7 +51,7 @@ class RfqController {
 	}
 
 	private RfqDto toDto(final Rfq rfq) {
-		return new RfqDto(rfq.getId(), rfq.getCounterparty().getId(), rfq.getBond().getId(),
+		return new RfqDto(rfq.getId(), rfq.getCounterpartyId(), rfq.getBondId(),
 				rfq.getNotionalAmount(), rfq.getSide(), rfq.getStatus(),
 				rfq.getExecutionPrice(), rfq.getCreatedAt());
 	}
