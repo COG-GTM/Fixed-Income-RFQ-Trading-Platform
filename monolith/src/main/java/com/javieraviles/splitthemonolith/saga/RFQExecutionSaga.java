@@ -42,9 +42,11 @@ public class RFQExecutionSaga {
 
 		bond.deductNotional(rfqDto.getNotionalAmount());
 		/*
-		 * This is all part of one transaction due to @Transactional annotation.
-		 * No need for saga compensation as credit will only be deducted if the
-		 * bond had sufficient available notional.
+		 * Notional is deducted before credit so credit only moves once the bond has
+		 * sufficient available notional. On the local path the whole operation is
+		 * atomic via @Transactional. On the counterparty-service path the remote
+		 * credit deduction commits independently and is not rolled back if the local
+		 * transaction subsequently fails (no saga compensation yet).
 		 */
 		final Counterparty counterparty;
 		if (useCounterpartyService) {
