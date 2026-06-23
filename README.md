@@ -1,11 +1,24 @@
 # Fixed-Income RFQ Trading Platform
 
-A SpringBoot monolith simulating a **fixed-income Request-for-Quote (RFQ) trading platform**.
+A SpringBoot application simulating a **fixed-income Request-for-Quote (RFQ) trading platform**, being incrementally split out of a monolith into microservices.
 
 Technologies used:
  - Java 11, Spring Boot, Spring Data JPA
  - H2 in-memory database
  - Maven
+
+## Modules
+
+| Module        | Port | Responsibility                                              |
+|---------------|------|-------------------------------------------------------------|
+| `monolith`    | 8080 | Bond inventory & counterparty credit (origin monolith)      |
+| `rfq-service` | 8073 | RFQ Execution orchestrator (saga) — see `rfq-service/README.md` |
+
+The **RFQ Execution** bounded context has been extracted into the independent
+`rfq-service` microservice (WP C). It no longer runs inside the monolith; instead
+it orchestrates a distributed saga over the Bond Service (port 8071) and
+Counterparty Service (port 8072), compensating the bond notional deduction if the
+credit deduction fails. See [`rfq-service/README.md`](rfq-service/README.md).
 
 - [Fixed-Income RFQ Trading Platform](#fixed-income-rfq-trading-platform)
   - [Domain Entities](#domain-entities)
@@ -16,7 +29,7 @@ Technologies used:
 
 ## Domain Entities
 
-Three domain entities:
+The monolith retains two domain entities:
  - **Counterparty**
    - name
    - lei (Legal Entity Identifier)
@@ -28,16 +41,13 @@ Three domain entities:
    - couponRate (BigDecimal)
    - maturityDate (LocalDate)
    - availableNotional (BigDecimal — par amount available for trading)
- - **RFQ** (Request for Quote)
-   - counterparty (manyToOne)
-   - bond (manyToOne)
-   - notionalAmount (BigDecimal — par amount requested)
-   - side (BUY / SELL)
-   - status (PENDING / QUOTED / EXECUTED / REJECTED)
-   - executionPrice (BigDecimal — total settlement amount)
-   - createdAt (Instant)
 
-Counterparty and Bond must be in place before executing an RFQ. If the bond has insufficient available notional or the counterparty has insufficient available credit, an exception will be thrown. The core logic is in `RFQExecutionSaga.java`, which attempts to execute an RFQ in a single transaction.
+The **RFQ** (Request for Quote) entity and its execution logic now live in the
+`rfq-service` microservice. Counterparty and Bond must be in place before executing
+an RFQ; if the bond has insufficient available notional or the counterparty has
+insufficient available credit, the execution is rejected. The core logic is in
+`rfq-service`'s `RFQExecutionSaga.java`, which orchestrates a distributed saga with
+a compensating transaction.
 
 A PATCH method endpoint exists for both `Counterparty` and `Bond` controllers to update credit / notional inventory.
 
@@ -59,17 +69,14 @@ A trade confirmation is sent to a counterparty whenever credit is added, handled
 | PUT    | `/bonds/{id}`          | Update a bond                                    |
 | PATCH  | `/bonds/{id}`          | Add or deduct notional (JSON: `amount`, `operation`) |
 | DELETE | `/bonds/{id}`          | Delete a bond                                    |
-| GET    | `/rfqs`                | List all RFQs                                    |
-| POST   | `/rfqs`                | Execute an RFQ                                   |
-| GET    | `/rfqs/{id}`           | Get an RFQ by ID                                 |
-| DELETE | `/rfqs/{id}`           | Delete an RFQ                                    |
+
+The `/rfqs` endpoints are now served by the `rfq-service` microservice on port 8073.
 
 ## Seed Data
 
-On startup the application loads:
+On startup the monolith loads:
 - **Counterparty**: Acme Asset Management (LEI: 549300EXAMPLE12345678, credit limit: $50,000,000)
 - **Bond**: US Treasury 2.75% 11/15/2030 (ISIN: US912828YK15, available notional: $100,000,000)
-- **RFQ**: BUY $5,000,000 notional at $4,987,500 — status EXECUTED
 
 ## Running the Application
 
@@ -78,7 +85,7 @@ cd monolith
 ./mvnw spring-boot:run
 ```
 
-The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints.
+The application starts on port `8080`. Hit `/counterparties` and `/bonds` to verify the REST endpoints. For the `/rfqs` endpoints, run the `rfq-service` (see [`rfq-service/README.md`](rfq-service/README.md)).
 
 ## Testing
 
@@ -87,4 +94,4 @@ cd monolith
 ./mvnw clean test
 ```
 
-See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
+See `IntegrationTest.java` for the monolith's bond/counterparty use-cases. RFQ execution and saga compensation are covered by tests in `rfq-service`.

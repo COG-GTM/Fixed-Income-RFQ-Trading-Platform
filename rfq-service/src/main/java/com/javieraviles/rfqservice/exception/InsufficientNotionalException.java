@@ -1,0 +1,9 @@
+package com.javieraviles.rfqservice.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = "Insufficient notional")
+public class InsufficientNotionalException extends RuntimeException {
+
+}

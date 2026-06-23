@@ -1,4 +1,4 @@
-package com.javieraviles.splitthemonolith.entity;
+package com.javieraviles.rfqservice.entity;
 
 public enum RfqStatus {
 	PENDING, QUOTED, EXECUTED, REJECTED

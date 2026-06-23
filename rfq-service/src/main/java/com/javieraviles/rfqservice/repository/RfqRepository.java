@@ -1,6 +1,6 @@
-package com.javieraviles.splitthemonolith.repository;
+package com.javieraviles.rfqservice.repository;
 
-import com.javieraviles.splitthemonolith.entity.Rfq;
+import com.javieraviles.rfqservice.entity.Rfq;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
