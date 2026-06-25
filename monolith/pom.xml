@@ -17,6 +17,8 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 managed h2 1.4.200 to fix CVE-2022-23221 (RCE) -->
+		<h2.version>2.1.210</h2.version>
 	</properties>
 
 	<dependencies>
