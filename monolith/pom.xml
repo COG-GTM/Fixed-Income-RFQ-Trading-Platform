@@ -17,6 +17,10 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 managed logback (1.2.3) to remediate CVE-2023-6481.
+		     1.2.13 stays on the 1.2.x line, compatible with Spring Boot 2.2.6 / Java 11.
+		     This property governs both logback-classic and logback-core. -->
+		<logback.version>1.2.13</logback.version>
 	</properties>
 
 	<dependencies>
