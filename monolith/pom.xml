@@ -17,6 +17,8 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 managed Jackson 2.10.3 to remediate CVE-2025-52999 (stack-based buffer overflow in jackson-core). 2.15.x keeps all jackson artifacts aligned and stays Java 11 compatible. -->
+		<jackson-bom.version>2.15.4</jackson-bom.version>
 	</properties>
 
 	<dependencies>
