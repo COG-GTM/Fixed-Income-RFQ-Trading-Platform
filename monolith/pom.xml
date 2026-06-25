@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override managed Tomcat version to remediate CVE-2024-56337 (TOCTOU race condition).
+		     Spring Boot 2.2.6 manages 9.0.33; 9.0.98 is the first fixed 9.0.x line. -->
+		<tomcat.version>9.0.98</tomcat.version>
 	</properties>
 
 	<dependencies>
