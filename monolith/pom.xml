@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 managed Jackson BOM (2.10.3) to remediate
+		     CVE-2026-54513 (jackson-databind: Incomplete List of Disallowed Inputs). -->
+		<jackson-bom.version>2.18.8</jackson-bom.version>
 	</properties>
 
 	<dependencies>
