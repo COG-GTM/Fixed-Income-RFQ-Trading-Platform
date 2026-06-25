@@ -3,8 +3,8 @@ package com.javieraviles.splitthemonolith.dto;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Positive;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 import com.javieraviles.splitthemonolith.entity.RfqStatus;
 import com.javieraviles.splitthemonolith.entity.Side;
