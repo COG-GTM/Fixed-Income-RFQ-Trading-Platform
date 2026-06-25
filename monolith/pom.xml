@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6's managed Spring Framework (5.2.5) to remediate
+		     CVE-2022-22965 (Spring4Shell). 5.2.20.RELEASE stays on the 5.2.x line. -->
+		<spring-framework.version>5.2.20.RELEASE</spring-framework.version>
 	</properties>
 
 	<dependencies>
