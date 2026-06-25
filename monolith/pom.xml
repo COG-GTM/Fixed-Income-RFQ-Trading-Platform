@@ -17,6 +17,8 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 managed Jackson (2.10.3) to remediate CVE-2020-36518 (jackson-databind DoS via deeply nested objects) -->
+		<jackson-bom.version>2.13.2.20220328</jackson-bom.version>
 	</properties>
 
 	<dependencies>
