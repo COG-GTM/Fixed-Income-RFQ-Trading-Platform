@@ -17,6 +17,10 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6-managed Jackson (2.10.3) to remediate
+		     SNYK-JAVA-COMFASTERXMLJACKSONCORE-15365924 (jackson-core HIGH).
+		     Keeps all jackson artifacts aligned via the jackson BOM. -->
+		<jackson-bom.version>2.18.6</jackson-bom.version>
 	</properties>
 
 	<dependencies>
