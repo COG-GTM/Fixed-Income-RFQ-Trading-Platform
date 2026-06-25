@@ -17,6 +17,8 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6-managed Tomcat (9.0.33) to remediate CVE-2024-52316 (Uncaught Exception). 9.0.98 stays on the 9.0.x line compatible with Spring Boot 2.2.6 / Java 11. -->
+		<tomcat.version>9.0.98</tomcat.version>
 	</properties>
 
 	<dependencies>
