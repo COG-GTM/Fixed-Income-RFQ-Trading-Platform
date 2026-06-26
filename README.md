@@ -88,3 +88,65 @@ cd monolith
 ```
 
 See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
+
+## Strangler Extraction: Credit Service
+
+The **counterparty credit-check capability** is being strangled out of the
+monolith into a standalone [`credit-service`](credit-service/README.md) (port
+`8060`). The extraction is transparent to callers of the monolith's `/rfqs` API.
+
+### Seam chosen
+
+Credit checks, not bond/reference data. Credit state is self-contained on
+`Counterparty`, the reserve/release operations are exact inverses (so they can
+be compensated), and a single invariant — "never overdraw available credit" —
+can be owned end-to-end by the new service. See the
+[credit-service README](credit-service/README.md#why-this-seam) for the full
+rationale and API contract.
+
+### The seam (port + adapters)
+
+`RFQExecutionSaga` depends only on the `CreditService` port
+(`monolith/.../credit/CreditService.java`), never on where credit lives. Two
+adapters implement it, selected by a property:
+
+| Adapter | Active when | Behavior |
+|---------|-------------|----------|
+| `LocalCreditService` | `rfq.credit.service.remote=false` (default) | In-process against the monolith's own `CounterpartyRepository`; joins the RFQ transaction — identical to the original monolith. |
+| `RemoteCreditService` | `rfq.credit.service.remote=true` | HTTP calls to the credit-service at `rfq.credit.service.url`; maps `409 -> InsufficientCreditException`, `404 -> ResourceNotFoundException`. |
+
+### Preserved invariants & atomicity
+
+- **Credit invariant** — a counterparty never spends beyond available credit;
+  enforced by whichever `CreditService` adapter is active.
+- **Notional invariant** — a bond never sells more than its available notional;
+  enforced locally by `Bond.deductNotional`.
+- **Atomicity** — credit is reserved through the port first; bond-notional
+  deduction and RFQ persistence then run in the local transaction. If that local
+  step fails, the saga issues a compensating `releaseCredit`, so a reservation is
+  never left dangling even when credit lives in a separate service outside the
+  monolith's transaction. Caller-facing outcomes (`201` executed, `400`
+  insufficient credit/notional, `404` unknown counterparty/bond) are unchanged.
+
+### Migration steps
+
+1. **Now (default):** `rfq.credit.service.remote=false` — `LocalCreditService`
+   runs in-process; original behavior, no service dependency.
+2. **Cut over:** start the credit-service, then set
+   `rfq.credit.service.remote=true` and `rfq.credit.service.url` (default
+   `http://localhost:8060/`). `RemoteCreditService` routes credit checks to the
+   service; the saga's compensation now spans the process boundary.
+3. **Roll back** at any time by flipping the property back to `false`.
+
+### Tests
+
+- `monolith/.../IntegrationTest.java` — original RFQ use-cases (unchanged), run
+  against the default in-process adapter.
+- `monolith/.../RemoteCreditRfqIntegrationTest.java` — drives `/rfqs` with
+  `rfq.credit.service.remote=true`, emulating the credit-service with
+  `MockRestServiceServer`: remote reserve + local notional deduction, remote
+  insufficient credit (`409 -> 400`, notional untouched), and compensation
+  (`releaseCredit`) when local notional is insufficient after a successful
+  reservation.
+- `credit-service/.../CreditServiceIntegrationTest.java` — the service's own
+  reserve/release/query contract.
