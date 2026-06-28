@@ -19,6 +19,19 @@
 		<java.version>11</java.version>
 	</properties>
 
+	<dependencyManagement>
+		<dependencies>
+			<!-- Pin transitive net.minidev:json-smart (via json-path) to a fixed
+			     version to remediate CVE-2023-1370 / SNYK-JAVA-NETMINIDEV-3369748 (DoS).
+			     The spring-boot-dependencies 2.2.6 BOM does not manage this artifact. -->
+			<dependency>
+				<groupId>net.minidev</groupId>
+				<artifactId>json-smart</artifactId>
+				<version>2.4.9</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
