@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM-managed Tomcat (9.0.33) to remediate
+		     CVE-2024-50379 / SNYK-JAVA-ORGAPACHETOMCATEMBED-8523186 (TOCTOU race). -->
+		<tomcat.version>9.0.98</tomcat.version>
 	</properties>
 
 	<dependencies>
