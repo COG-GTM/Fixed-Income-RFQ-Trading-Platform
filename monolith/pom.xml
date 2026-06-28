@@ -17,6 +17,10 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM-managed logback (1.2.3) to remediate
+		     SNYK-JAVA-CHQOSLOGBACK-6094943 / CVE-2023-6378 (logback-core DoS).
+		     1.2.13 is the lowest fixed version in the 1.2.x line. -->
+		<logback.version>1.2.13</logback.version>
 	</properties>
 
 	<dependencies>
