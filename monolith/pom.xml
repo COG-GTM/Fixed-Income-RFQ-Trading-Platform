@@ -17,6 +17,10 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override the Spring Boot 2.2.6 BOM-managed Tomcat version to remediate
+		     SNYK-JAVA-ORGAPACHETOMCATEMBED-16691231 / CVE-2026-43512 (Improper
+		     Authentication) in org.apache.tomcat.embed:tomcat-embed-core. -->
+		<tomcat.version>9.0.118</tomcat.version>
 	</properties>
 
 	<dependencies>
