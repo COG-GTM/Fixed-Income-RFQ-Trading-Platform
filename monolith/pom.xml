@@ -17,6 +17,11 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM-managed Jackson (2.10.3) to remediate
+		     SNYK-JAVA-COMFASTERXMLJACKSONCORE-17440366 / CVE-2026-54513 in
+		     com.fasterxml.jackson.core:jackson-databind. The jackson-bom property
+		     bumps all Jackson modules together to keep them version-consistent. -->
+		<jackson-bom.version>2.18.8</jackson-bom.version>
 	</properties>
 
 	<dependencies>
