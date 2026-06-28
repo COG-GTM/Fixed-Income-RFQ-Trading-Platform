@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override transitive org.assertj:assertj-core (managed by spring-boot-dependencies BOM)
+		     to remediate SNYK-JAVA-ORGASSERTJ-15102413 / CVE-2026-24400 (XXE Injection). -->
+		<assertj.version>3.27.7</assertj.version>
 	</properties>
 
 	<dependencies>
