@@ -17,6 +17,11 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM (jackson-databind 2.10.3) to remediate
+		     CVE-2026-54512 / SNYK-JAVA-COMFASTERXMLJACKSONCORE-17440598
+		     (Deserialization of Untrusted Data, critical). jackson-databind 2.18.x
+		     requires matching jackson-core/annotations, so bump the whole jackson BOM. -->
+		<jackson-bom.version>2.18.8</jackson-bom.version>
 	</properties>
 
 	<dependencies>
