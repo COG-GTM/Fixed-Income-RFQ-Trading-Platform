@@ -17,6 +17,11 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override the Spring Framework version managed by the spring-boot 2.2.6 BOM (5.2.5.RELEASE)
+		     to remediate CVE-2020-5421 / SNYK-JAVA-ORGSPRINGFRAMEWORK-1009832 in org.springframework:spring-web.
+		     This is the property the BOM uses to manage spring-web; bumping it to 5.2.9.RELEASE keeps all
+		     Spring Framework modules in sync (spring-web requires a matching spring-core) within the same 5.2.x line. -->
+		<spring-framework.version>5.2.9.RELEASE</spring-framework.version>
 	</properties>
 
 	<dependencies>
