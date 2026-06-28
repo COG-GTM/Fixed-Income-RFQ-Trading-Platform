@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM-managed H2 (1.4.200) to remediate
+		     SNYK-JAVA-COMH2DATABASE-1769238 / CVE-2021-23463 (XXE Injection) -->
+		<h2.version>2.0.202</h2.version>
 	</properties>
 
 	<dependencies>
