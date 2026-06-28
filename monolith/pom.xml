@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM-managed Hibernate (5.4.12.Final) to fix
+		     SNYK-JAVA-ORGHIBERNATE-1041788 / CVE-2020-25638 (SQL Injection). -->
+		<hibernate.version>5.4.24.Final</hibernate.version>
 	</properties>
 
 	<dependencies>
