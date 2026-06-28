@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override the tomcat-embed-core version managed by the Spring Boot 2.2.6 BOM
+		     to remediate CVE-2024-56337 / SNYK-JAVA-ORGAPACHETOMCATEMBED-8547999 (TOCTOU race condition). -->
+		<tomcat.version>9.0.98</tomcat.version>
 	</properties>
 
 	<dependencies>
