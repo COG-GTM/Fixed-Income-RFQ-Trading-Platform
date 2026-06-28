@@ -17,6 +17,10 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM-managed Tomcat (9.0.33) to a fixed
+		     version that remediates SNYK-JAVA-ORGAPACHETOMCATEMBED-6435950
+		     (CVE-2024-23672, Denial of Service in tomcat-embed-websocket). -->
+		<tomcat.version>9.0.86</tomcat.version>
 	</properties>
 
 	<dependencies>
