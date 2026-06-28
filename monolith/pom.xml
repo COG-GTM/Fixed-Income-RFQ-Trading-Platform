@@ -17,6 +17,9 @@
 
 	<properties>
 		<java.version>11</java.version>
+		<!-- Override Spring Boot 2.2.6 BOM-managed Tomcat to fix CVE-2025-66614
+		     (SNYK-JAVA-ORGAPACHETOMCATEMBED-15307781, Improper Certificate Validation) -->
+		<tomcat.version>9.0.113</tomcat.version>
 	</properties>
 
 	<dependencies>
