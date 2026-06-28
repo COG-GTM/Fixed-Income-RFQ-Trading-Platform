@@ -57,6 +57,21 @@
 		</dependency>
 	</dependencies>
 
+	<dependencyManagement>
+		<dependencies>
+			<!-- Override the jackson-core version managed transitively by the
+			     spring-boot-dependencies 2.2.6 BOM (2.10.3) to remediate
+			     CVE-2025-52999 / SNYK-JAVA-COMFASTERXMLJACKSONCORE-10500754
+			     (Stack-based Buffer Overflow). Snyk's minimum fixed version is
+			     2.15.0-rc1; we pin the 2.15.0 GA release rather than the RC. -->
+			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-core</artifactId>
+				<version>2.15.0</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<build>
 		<finalName>monolith</finalName>
 		<plugins>
