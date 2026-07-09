@@ -47,6 +47,9 @@ public class SplitTheMonolithApplication implements CommandLineRunner {
 				new BigDecimal("100000000.00"));
 		counterpartyRepository.save(acme);
 		bondRepository.save(ustNote);
+		ustNote.updateQuote(new BigDecimal("99.8750"), new BigDecimal("99.8500"),
+				new BigDecimal("99.9000"));
+		bondRepository.save(ustNote);
 		rfqRepository.save(new Rfq(acme, ustNote, new BigDecimal("5000000.00"),
 				Side.BUY, RfqStatus.EXECUTED, new BigDecimal("4987500.00")));
 	}

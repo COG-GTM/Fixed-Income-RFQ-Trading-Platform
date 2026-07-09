@@ -33,6 +33,15 @@ public class Bond {
 	@Column(precision = 19, scale = 2)
 	private BigDecimal availableNotional;
 
+	@Column(precision = 19, scale = 6)
+	private BigDecimal price;
+
+	@Column(precision = 19, scale = 6)
+	private BigDecimal bid;
+
+	@Column(precision = 19, scale = 6)
+	private BigDecimal ask;
+
 	public Bond() {
 	}
 
@@ -98,5 +107,35 @@ public class Bond {
 
 	public void setAvailableNotional(final BigDecimal availableNotional) {
 		this.availableNotional = availableNotional;
+	}
+
+	public BigDecimal getPrice() {
+		return price;
+	}
+
+	public void setPrice(final BigDecimal price) {
+		this.price = price;
+	}
+
+	public BigDecimal getBid() {
+		return bid;
+	}
+
+	public void setBid(final BigDecimal bid) {
+		this.bid = bid;
+	}
+
+	public BigDecimal getAsk() {
+		return ask;
+	}
+
+	public void setAsk(final BigDecimal ask) {
+		this.ask = ask;
+	}
+
+	public void updateQuote(final BigDecimal price, final BigDecimal bid, final BigDecimal ask) {
+		this.price = price;
+		this.bid = bid;
+		this.ask = ask;
 	}
 }
