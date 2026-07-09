@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Fixed-Income RFQ — Live Demo</title>
+	<style>
+		body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; color: #1a2330; background: #f5f7fa; }
+		h1 { font-size: 20px; margin-bottom: 4px; }
+		p.sub { color: #5a6472; margin-top: 0; }
+		.grid { display: flex; gap: 24px; flex-wrap: wrap; }
+		.card { background: #fff; border: 1px solid #e1e6ec; border-radius: 8px; padding: 16px; flex: 1 1 380px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+		.card h2 { font-size: 15px; margin: 0 0 8px; }
+		.status { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+		.status.ok { background: #e4f6ea; color: #1b7a3d; }
+		.status.bad { background: #fdeaea; color: #b3261e; }
+		.status.wait { background: #fdf4e3; color: #9a6a00; }
+		table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+		th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eef1f5; }
+		th { color: #5a6472; font-weight: 600; }
+		td.num { text-align: right; font-variant-numeric: tabular-nums; }
+		.up { color: #1b7a3d; } .down { color: #b3261e; }
+		ul.log { list-style: none; padding: 0; margin: 8px 0 0; font-size: 13px; max-height: 220px; overflow-y: auto; }
+		ul.log li { padding: 4px 0; border-bottom: 1px solid #eef1f5; }
+		code { background: #eef1f5; padding: 1px 4px; border-radius: 4px; }
+	</style>
+</head>
+<body>
+	<h1>Fixed-Income RFQ — Live Demo</h1>
+	<p class="sub">SSE fallback stream (works now) + STOMP-over-WebSocket (activates when the WS tickets land).</p>
+
+	<div class="grid">
+		<div class="card">
+			<h2>Live Prices <span id="sse-status" class="status wait">connecting…</span></h2>
+			<p class="sub">Source: <code>EventSource('/stream/sse')</code> — simulated ticker.</p>
+			<table>
+				<thead>
+					<tr><th>ISIN</th><th class="num">Price</th><th class="num">Change</th><th class="num">Updated</th></tr>
+				</thead>
+				<tbody id="prices"></tbody>
+			</table>
+		</div>
+
+		<div class="card">
+			<h2>WebSocket / STOMP <span id="ws-status" class="status wait">connecting…</span></h2>
+			<p class="sub">Attempts <code>SockJS('/ws')</code> → subscribes to <code>/topic/prices</code>, <code>/topic/rfqs</code>, <code>/topic/inventory</code>.</p>
+			<ul id="ws-log" class="log"></ul>
+		</div>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+	<script src="/app.js"></script>
+</body>
+</html>
