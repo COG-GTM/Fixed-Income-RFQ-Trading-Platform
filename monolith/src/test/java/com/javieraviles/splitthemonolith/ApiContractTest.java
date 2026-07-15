@@ -193,7 +193,10 @@ public class ApiContractTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.name", is("Vanguard Group Intl")))
 				.andExpect(jsonPath("$.lei", is("549300VANGUARD00002")));
-		assertBigDecimalEquals("11000000.00", getJson("/counterparties/" + id).get("creditLimit"));
+		final JsonNode updated = getJson("/counterparties/" + id);
+		assertBigDecimalEquals("11000000.00", updated.get("creditLimit"));
+		// PUT is a full replace: availableCredit is overwritten from the request body, not preserved.
+		assertBigDecimalEquals("11000000.00", updated.get("availableCredit"));
 	}
 
 	@Test
