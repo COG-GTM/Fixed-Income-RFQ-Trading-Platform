@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -51,6 +52,12 @@ public class SplitTheMonolithApplication implements CommandLineRunner {
 				Side.BUY, RfqStatus.EXECUTED, new BigDecimal("4987500.00")));
 	}
 
+	@Value("${confirmationms.connectTimeoutMs:2000}")
+	private int confirmationConnectTimeoutMs;
+
+	@Value("${confirmationms.readTimeoutMs:2000}")
+	private int confirmationReadTimeoutMs;
+
 	@Bean
 	RestTemplate restTemplate() {
 		CloseableHttpClient httpClient = HttpClientBuilder.create().build();
@@ -59,6 +66,8 @@ public class SplitTheMonolithApplication implements CommandLineRunner {
 
 	private RestTemplate createRestTemplate(final CloseableHttpClient httpClient) {
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
+		requestFactory.setConnectTimeout(confirmationConnectTimeoutMs);
+		requestFactory.setReadTimeout(confirmationReadTimeoutMs);
 		RestTemplate restTemplate = new RestTemplate(requestFactory);
 		return restTemplate;
 	}

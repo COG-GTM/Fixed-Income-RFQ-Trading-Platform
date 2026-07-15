@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,24 +22,17 @@ import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
+import com.javieraviles.splitthemonolith.port.ConfirmationPort;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
-import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
-import com.javieraviles.splitthemonolith.service.TradeConfirmationService;
 
 @RestController
 class CounterpartyController {
-
-	@Value(value = "${use.confirmation.service}")
-	private boolean useConfirmationService;
 
 	@Autowired
 	private CounterpartyRepository repository;
 
 	@Autowired
-	private TradeConfirmationService tradeConfirmationService;
-
-	@Autowired
-	private TradeConfirmationMicroserviceClient confirmationMsClient;
+	private ConfirmationPort confirmationPort;
 
 	@GetMapping("/counterparties")
 	List<Counterparty> getAll() {
@@ -80,11 +72,7 @@ class CounterpartyController {
 			if (operation == OperationEnum.ADD) {
 				counterparty.addCredit(creditAmount);
 				final TradeConfirmationDto confirmation = new TradeConfirmationDto(counterparty.getName(), creditAmount);
-				if (useConfirmationService) {
-					confirmationMsClient.sendConfirmation(confirmation);
-				} else {
-					tradeConfirmationService.sendTradeConfirmation(confirmation);
-				}
+				confirmationPort.sendConfirmation(confirmation);
 			} else {
 				counterparty.deductCredit(creditAmount);
 			}

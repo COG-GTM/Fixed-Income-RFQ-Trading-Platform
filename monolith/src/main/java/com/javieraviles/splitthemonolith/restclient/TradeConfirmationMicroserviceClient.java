@@ -10,9 +10,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
+import com.javieraviles.splitthemonolith.port.ConfirmationPort;
 
+/**
+ * Remote implementation of {@link ConfirmationPort} (Domain D). POSTs the
+ * confirmation to the standalone confirmation-service at
+ * {@code ${confirmationms.url}confirmations/}.
+ */
 @Component
-public class TradeConfirmationMicroserviceClient {
+public class TradeConfirmationMicroserviceClient implements ConfirmationPort {
 
 	@Value(value = "${confirmationms.url}")
 	private String confirmationMsBaseUri;
@@ -20,6 +26,7 @@ public class TradeConfirmationMicroserviceClient {
 	@Autowired
 	private RestTemplate restTemplate;
 
+	@Override
 	public void sendConfirmation(final TradeConfirmationDto confirmation) {
 		HttpEntity<TradeConfirmationDto> requestEntity = new HttpEntity<>(confirmation, getJsonHeaders());
 		restTemplate.exchange(confirmationMsBaseUri + "confirmations/", HttpMethod.POST, requestEntity, String.class);
