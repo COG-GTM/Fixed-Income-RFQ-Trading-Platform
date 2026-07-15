@@ -19,7 +19,11 @@ import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.RfqRepository;
 import com.javieraviles.splitthemonolith.saga.RFQExecutionSaga;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
+@Tag(name = "RFQ", description = "RFQ (trade execution) capability: atomic Request-for-Quote execution")
 class RfqController {
 
 	@Autowired
@@ -28,23 +32,27 @@ class RfqController {
 	@Autowired
 	private RFQExecutionSaga rfqExecutionSaga;
 
+	@Operation(summary = "List all RFQs")
 	@GetMapping("/rfqs")
 	List<RfqDto> getAll() {
 		final List<Rfq> rfqs = repository.findAll();
 		return rfqs.stream().map(this::toDto).collect(Collectors.toList());
 	}
 
+	@Operation(summary = "Execute an RFQ", description = "Deducts bond notional and counterparty credit in one transaction, persisting the RFQ as EXECUTED.")
 	@PostMapping("/rfqs")
 	ResponseEntity<RfqDto> createRfq(@RequestBody RfqDto newRfq) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(toDto(rfqExecutionSaga.executeRfq(newRfq)));
 	}
 
+	@Operation(summary = "Get an RFQ by ID")
 	@GetMapping("/rfqs/{id}")
 	ResponseEntity<RfqDto> getOne(@PathVariable Long id) {
 		final Rfq rfq = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
 		return ResponseEntity.ok(toDto(rfq));
 	}
 
+	@Operation(summary = "Delete an RFQ")
 	@DeleteMapping("/rfqs/{id}")
 	void deleteRfq(@PathVariable Long id) {
 		repository.deleteById(id);

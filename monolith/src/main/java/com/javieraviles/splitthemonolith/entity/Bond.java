@@ -12,25 +12,34 @@ import javax.validation.constraints.PositiveOrZero;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientNotionalException;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "A fixed-income instrument identified by its ISIN")
 @Entity(name = "bonds")
 public class Bond {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	@Schema(description = "Auto-generated identifier", accessMode = Schema.AccessMode.READ_ONLY)
 	private long id;
 
 	@Column(unique = true, length = 12)
+	@Schema(description = "International Securities Identification Number (unique)", example = "US912828YK15")
 	private String isin;
 
+	@Schema(description = "Bond issuer", example = "US Treasury")
 	private String issuer;
 
 	@Column(precision = 7, scale = 4)
+	@Schema(description = "Coupon rate percentage", example = "2.7500")
 	private BigDecimal couponRate;
 
+	@Schema(description = "Maturity date (ISO-8601)", example = "2030-11-15")
 	private LocalDate maturityDate;
 
 	@PositiveOrZero
 	@Column(precision = 19, scale = 2)
+	@Schema(description = "Par amount available for trading", example = "100000000.00")
 	private BigDecimal availableNotional;
 
 	public Bond() {

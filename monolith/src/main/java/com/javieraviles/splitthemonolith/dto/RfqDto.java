@@ -9,27 +9,37 @@ import javax.validation.constraints.Positive;
 import com.javieraviles.splitthemonolith.entity.RfqStatus;
 import com.javieraviles.splitthemonolith.entity.Side;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Request-for-Quote payload and result projection")
 public class RfqDto {
 
+	@Schema(description = "Auto-generated identifier", accessMode = Schema.AccessMode.READ_ONLY)
 	private long id;
 
 	@NotNull
+	@Schema(description = "Identifier of the counterparty placing the RFQ", example = "1")
 	private long counterpartyId;
 
 	@NotNull
+	@Schema(description = "Identifier of the bond being traded", example = "1")
 	private long bondId;
 
 	@Positive
+	@Schema(description = "Par amount requested (must be positive)", example = "5000000.00")
 	private BigDecimal notionalAmount;
 
 	@NotNull
 	private Side side;
 
+	@Schema(description = "Lifecycle state; set to EXECUTED on successful execution")
 	private RfqStatus status;
 
 	@Positive
+	@Schema(description = "Total settlement amount (must be positive)", example = "4987500.00")
 	private BigDecimal executionPrice;
 
+	@Schema(description = "Creation timestamp, set on persistence", accessMode = Schema.AccessMode.READ_ONLY)
 	private Instant createdAt;
 
 	public RfqDto() {

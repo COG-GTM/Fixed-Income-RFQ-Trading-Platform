@@ -1,0 +1,534 @@
+openapi: 3.0.3
+info:
+  title: Fixed-Income RFQ Trading Platform API
+  description: >-
+    Explicit REST API contract for the Fixed-Income RFQ Trading Platform monolith.
+
+    This specification documents the CURRENT implementation of the Spring Boot
+    monolith (`monolith/` module). It is authored as part of Phase 0
+    (Foundations) of the strangler-fig decomposition: contracts are defined per
+    business capability so that individual capabilities can later be extracted
+    into microservices without changing their externally observable behaviour.
+
+    Business capabilities (each grouped as a tag below):
+      * Counterparty (credit)   - `CounterpartyController`
+      * Bond (inventory)        - `BondController`
+      * RFQ (trade execution)   - `RfqController` + `RFQExecutionSaga`
+      * Trade Confirmation      - `TradeConfirmationService` / `TradeConfirmationMicroserviceClient`
+  version: 0.0.1-SNAPSHOT
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:8080
+    description: Local monolith instance (default port 8080)
+tags:
+  - name: Counterparty
+    description: >-
+      Counterparty (credit) capability. Manages legal entities and their
+      available credit. The PATCH endpoint adds or deducts available credit;
+      adding credit triggers a trade confirmation.
+  - name: Bond
+    description: >-
+      Bond (inventory) capability. Manages fixed-income instruments and their
+      available notional. The PATCH endpoint adds or deducts available notional.
+  - name: RFQ
+    description: >-
+      RFQ (trade execution) capability. Executes Request-for-Quote trades
+      atomically via the RFQ execution saga, deducting bond notional and
+      counterparty credit within a single transaction.
+paths:
+  /counterparties:
+    get:
+      tags: [Counterparty]
+      summary: List all counterparties
+      operationId: getAllCounterparties
+      responses:
+        '200':
+          description: All counterparties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Counterparty'
+    post:
+      tags: [Counterparty]
+      summary: Create a counterparty
+      operationId: createCounterparty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Counterparty'
+      responses:
+        '201':
+          description: Counterparty created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Counterparty'
+  /counterparties/{id}:
+    get:
+      tags: [Counterparty]
+      summary: Get a counterparty by ID
+      operationId: getCounterparty
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      responses:
+        '200':
+          description: The requested counterparty
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Counterparty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Counterparty]
+      summary: Update a counterparty
+      description: Replaces name, LEI, credit limit and available credit for the given counterparty.
+      operationId: updateCounterparty
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Counterparty'
+      responses:
+        '200':
+          description: The updated counterparty
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Counterparty'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Counterparty]
+      summary: Add or deduct available credit
+      description: >-
+        Adjusts the counterparty's available credit. The request body is a JSON
+        object with `amount` and `operation` (`ADD` or `DEDUCT`). When
+        `operation` is `ADD`, a trade confirmation is sent for the counterparty.
+        Deducting more than the available credit results in a `400` (insufficient
+        credit); an unknown operation results in a `400` (wrong operation).
+      operationId: patchCounterpartyCredit
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditOperation'
+      responses:
+        '200':
+          description: The counterparty with updated available credit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Counterparty'
+        '400':
+          description: >-
+            Invalid operation ("wrong operation" as plain text) or insufficient
+            available credit for a DEDUCT.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: wrong operation
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Counterparty]
+      summary: Delete a counterparty
+      operationId: deleteCounterparty
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      responses:
+        '200':
+          description: Counterparty deleted (empty body)
+  /bonds:
+    get:
+      tags: [Bond]
+      summary: List all bonds
+      operationId: getAllBonds
+      responses:
+        '200':
+          description: All bonds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bond'
+    post:
+      tags: [Bond]
+      summary: Create a bond
+      operationId: createBond
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bond'
+      responses:
+        '201':
+          description: Bond created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bond'
+  /bonds/{id}:
+    get:
+      tags: [Bond]
+      summary: Get a bond by ID
+      operationId: getBond
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      responses:
+        '200':
+          description: The requested bond
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bond'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Bond]
+      summary: Update a bond
+      description: Replaces ISIN, issuer, coupon rate, maturity date and available notional for the given bond.
+      operationId: updateBond
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bond'
+      responses:
+        '200':
+          description: The updated bond
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bond'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Bond]
+      summary: Add or deduct available notional
+      description: >-
+        Adjusts the bond's available notional. The request body is a JSON object
+        with `amount` and `operation` (`ADD` or `DEDUCT`). Deducting more than
+        the available notional results in a `400` (insufficient notional); an
+        unknown operation results in a `400` (wrong operation).
+      operationId: patchBondNotional
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotionalOperation'
+      responses:
+        '200':
+          description: The bond with updated available notional
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bond'
+        '400':
+          description: >-
+            Invalid operation ("wrong operation" as plain text) or insufficient
+            available notional for a DEDUCT.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: wrong operation
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Bond]
+      summary: Delete a bond
+      operationId: deleteBond
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      responses:
+        '200':
+          description: Bond deleted (empty body)
+  /rfqs:
+    get:
+      tags: [RFQ]
+      summary: List all RFQs
+      operationId: getAllRfqs
+      responses:
+        '200':
+          description: All RFQs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RfqDto'
+    post:
+      tags: [RFQ]
+      summary: Execute an RFQ
+      description: >-
+        Executes a Request-for-Quote atomically. The referenced bond's notional
+        and the counterparty's credit are deducted within a single transaction;
+        on success the RFQ is persisted with status EXECUTED. A missing bond or
+        counterparty yields `404`; insufficient notional or credit yields `400`.
+      operationId: executeRfq
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RfqDto'
+      responses:
+        '201':
+          description: The executed RFQ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RfqDto'
+        '400':
+          description: Insufficient credit or insufficient notional.
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /rfqs/{id}:
+    get:
+      tags: [RFQ]
+      summary: Get an RFQ by ID
+      operationId: getRfq
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      responses:
+        '200':
+          description: The requested RFQ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RfqDto'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [RFQ]
+      summary: Delete an RFQ
+      operationId: deleteRfq
+      parameters:
+        - $ref: '#/components/parameters/IdPathParam'
+      responses:
+        '200':
+          description: RFQ deleted (empty body)
+components:
+  parameters:
+    IdPathParam:
+      name: id
+      in: path
+      required: true
+      description: Resource identifier
+      schema:
+        type: integer
+        format: int64
+  responses:
+    NotFound:
+      description: Resource not found
+  schemas:
+    Counterparty:
+      type: object
+      description: A legal entity with defined credit limits and an LEI.
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Auto-generated identifier.
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Counterparty name.
+          example: Acme Asset Management
+        lei:
+          type: string
+          maxLength: 24
+          description: Legal Entity Identifier.
+          example: 549300EXAMPLE12345678
+        creditLimit:
+          type: number
+          format: double
+          minimum: 0
+          description: Total credit limit (BigDecimal, precision 19 scale 2).
+          example: 50000000.00
+        availableCredit:
+          type: number
+          format: double
+          minimum: 0
+          description: >-
+            Remaining available credit (BigDecimal, precision 19 scale 2). When
+            omitted on creation it defaults to `creditLimit`.
+          example: 45012500.00
+    Bond:
+      type: object
+      description: A fixed-income instrument identified by its ISIN.
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Auto-generated identifier.
+        isin:
+          type: string
+          maxLength: 12
+          description: International Securities Identification Number (unique).
+          example: US912828YK15
+        issuer:
+          type: string
+          description: Bond issuer.
+          example: US Treasury
+        couponRate:
+          type: number
+          format: double
+          description: Coupon rate percentage (BigDecimal, precision 7 scale 4).
+          example: 2.7500
+        maturityDate:
+          type: string
+          format: date
+          description: Maturity date (ISO-8601, yyyy-MM-dd).
+          example: '2030-11-15'
+        availableNotional:
+          type: number
+          format: double
+          minimum: 0
+          description: Par amount available for trading (BigDecimal, precision 19 scale 2).
+          example: 100000000.00
+    RfqDto:
+      type: object
+      description: Request-for-Quote payload and result projection.
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Auto-generated identifier.
+        counterpartyId:
+          type: integer
+          format: int64
+          description: Identifier of the counterparty placing the RFQ.
+          example: 1
+        bondId:
+          type: integer
+          format: int64
+          description: Identifier of the bond being traded.
+          example: 1
+        notionalAmount:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          description: Par amount requested (BigDecimal, must be positive).
+          example: 5000000.00
+        side:
+          $ref: '#/components/schemas/Side'
+        status:
+          $ref: '#/components/schemas/RfqStatus'
+        executionPrice:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          description: Total settlement amount (BigDecimal, must be positive).
+          example: 4987500.00
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Creation timestamp (Instant, set on persistence).
+      required:
+        - counterpartyId
+        - bondId
+        - notionalAmount
+        - side
+    TradeConfirmationDto:
+      type: object
+      description: >-
+        Trade confirmation sent to a counterparty whenever credit is added.
+        Handled locally by `TradeConfirmationService` or forwarded to the
+        external confirmation microservice depending on the
+        `use.confirmation.service` feature toggle. Not directly exposed by a
+        monolith REST endpoint; documented as the contract for the confirmation
+        capability.
+      properties:
+        counterpartyName:
+          type: string
+          description: Name of the counterparty being confirmed.
+          example: Acme Asset Management
+        creditAmount:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          description: Credit amount added (BigDecimal, must be positive).
+          example: 1000000.00
+    CreditOperation:
+      type: object
+      description: >-
+        PATCH body for `/counterparties/{id}`. Deserialized as a JSON map of
+        string values; `amount` is parsed as a BigDecimal and `operation` as an
+        OperationEnum.
+      properties:
+        amount:
+          type: string
+          description: Credit amount to add or deduct (numeric string parsed as BigDecimal).
+          example: '1000000.00'
+        operation:
+          $ref: '#/components/schemas/OperationEnum'
+      required:
+        - amount
+        - operation
+    NotionalOperation:
+      type: object
+      description: >-
+        PATCH body for `/bonds/{id}`. Deserialized as a JSON map of string
+        values; `amount` is parsed as a BigDecimal and `operation` as an
+        OperationEnum.
+      properties:
+        amount:
+          type: string
+          description: Notional amount to add or deduct (numeric string parsed as BigDecimal).
+          example: '1000000.00'
+        operation:
+          $ref: '#/components/schemas/OperationEnum'
+      required:
+        - amount
+        - operation
+    OperationEnum:
+      type: string
+      description: Direction of a credit/notional adjustment.
+      enum:
+        - DEDUCT
+        - ADD
+    Side:
+      type: string
+      description: Direction of a trade.
+      enum:
+        - BUY
+        - SELL
+    RfqStatus:
+      type: string
+      description: Lifecycle state of an RFQ.
+      enum:
+        - PENDING
+        - QUOTED
+        - EXECUTED
+        - REJECTED
