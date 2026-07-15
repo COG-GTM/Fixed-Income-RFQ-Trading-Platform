@@ -8,12 +8,14 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.PrePersist;
+import javax.persistence.Table;
 import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientCreditException;
 
 @Entity(name = "counterparties")
+@Table(name = "counterparties", schema = "counterparty")
 public class Counterparty {
 
 	@Id
