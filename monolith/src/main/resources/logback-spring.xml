@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+	<springProperty scope="context" name="appName" source="spring.application.name"
+		defaultValue="fixed-income-rfq-monolith" />
+
+	<!-- Structured JSON logging. Every log line includes MDC entries such as the
+	     per-request correlationId set by CorrelationIdFilter. -->
+	<appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder class="net.logstash.logback.encoder.LogstashEncoder">
+			<includeMdc>true</includeMdc>
+			<customFields>{"application":"${appName}"}</customFields>
+		</encoder>
+	</appender>
+
+	<root level="INFO">
+		<appender-ref ref="JSON" />
+	</root>
+
+</configuration>
