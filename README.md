@@ -12,6 +12,7 @@ Technologies used:
   - [REST Endpoints](#rest-endpoints)
   - [Seed Data](#seed-data)
   - [Running the Application](#running-the-application)
+  - [Confirmation Service (extracted microservice)](#confirmation-service-extracted-microservice)
   - [Testing](#testing)
 
 ## Domain Entities
@@ -79,6 +80,41 @@ cd monolith
 ```
 
 The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints.
+
+## Confirmation Service (extracted microservice)
+
+Trade Confirmation (Domain D) has been extracted into a standalone Spring Boot module,
+`confirmation-service/`, as the first step of the microservices decomposition (see
+`MICROSERVICES_DECOMPOSITION_STRATEGY.md`, Phase 1). It is stateless — it only logs — so
+it requires no database.
+
+**API contract**
+
+| Method | Path              | Body                                              | Response |
+|--------|-------------------|---------------------------------------------------|----------|
+| POST   | `/confirmations/` | `{ "counterpartyName": string, "creditAmount": number(>0) }` | `201 Created` on accept; `400 Bad Request` on validation failure |
+
+```bash
+cd confirmation-service
+./mvnw spring-boot:run   # starts on port 8070
+```
+
+**How the monolith uses it.** The monolith talks to Trade Confirmation only through a
+`ConfirmationPort` anti-corruption interface, implemented by both the in-process
+`TradeConfirmationService` and the remote `TradeConfirmationMicroserviceClient`. The
+`use.confirmation.service` flag selects the implementation (default `false` → in-process).
+When `true`, the outbound call is wrapped in `ResilientConfirmationPort` with a request
+timeout and a graceful fallback: if `confirmation-service` is slow or down, the failure is
+logged and the credit-add (`PATCH /counterparties/{id}`) still succeeds.
+
+Relevant config (`monolith/src/main/resources/application.properties`):
+
+```properties
+use.confirmation.service=false
+confirmationms.url=http://localhost:8070/
+confirmationms.connectTimeoutMs=2000
+confirmationms.readTimeoutMs=2000
+```
 
 ## Testing
 
