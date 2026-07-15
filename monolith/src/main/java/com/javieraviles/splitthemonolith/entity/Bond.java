@@ -8,11 +8,13 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.Table;
 import javax.validation.constraints.PositiveOrZero;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientNotionalException;
 
 @Entity(name = "bonds")
+@Table(name = "bonds", schema = "bond")
 public class Bond {
 
 	@Id
