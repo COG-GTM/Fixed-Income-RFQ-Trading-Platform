@@ -27,7 +27,11 @@ import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
 import com.javieraviles.splitthemonolith.service.TradeConfirmationService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
+@Tag(name = "Counterparty", description = "Counterparty (credit) capability: legal entities and their available credit")
 class CounterpartyController {
 
 	@Value(value = "${use.confirmation.service}")
@@ -42,22 +46,26 @@ class CounterpartyController {
 	@Autowired
 	private TradeConfirmationMicroserviceClient confirmationMsClient;
 
+	@Operation(summary = "List all counterparties")
 	@GetMapping("/counterparties")
 	List<Counterparty> getAll() {
 		return repository.findAll();
 	}
 
+	@Operation(summary = "Create a counterparty")
 	@PostMapping("/counterparties")
 	ResponseEntity<Counterparty> createCounterparty(@RequestBody Counterparty newCounterparty) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(newCounterparty));
 	}
 
+	@Operation(summary = "Get a counterparty by ID")
 	@GetMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> getOne(@PathVariable Long id) {
 		final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
 		return ResponseEntity.ok(counterparty);
 	}
 
+	@Operation(summary = "Update a counterparty")
 	@PutMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> updateCounterparty(@RequestBody Counterparty updatedCounterparty, @PathVariable Long id) {
 		final Counterparty counterparty = repository.findById(id).map(c -> {
@@ -70,6 +78,7 @@ class CounterpartyController {
 		return ResponseEntity.ok(counterparty);
 	}
 
+	@Operation(summary = "Add or deduct available credit", description = "Body is a JSON object with 'amount' and 'operation' (ADD or DEDUCT). Adding credit sends a trade confirmation.")
 	@RequestMapping(value = "/counterparties/{id}", method = RequestMethod.PATCH, consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> partialUpdateGeneric(@RequestBody Map<String, String> creditUpdate,
 			@PathVariable("id") Long id) {
@@ -94,6 +103,7 @@ class CounterpartyController {
 		}
 	}
 
+	@Operation(summary = "Delete a counterparty")
 	@DeleteMapping("/counterparties/{id}")
 	void deleteCounterparty(@PathVariable Long id) {
 		repository.deleteById(id);

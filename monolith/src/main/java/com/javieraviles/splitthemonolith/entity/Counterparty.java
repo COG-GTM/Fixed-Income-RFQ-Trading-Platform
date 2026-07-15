@@ -13,25 +13,33 @@ import javax.validation.constraints.Size;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientCreditException;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "A legal entity with defined credit limits and an LEI")
 @Entity(name = "counterparties")
 public class Counterparty {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	@Schema(description = "Auto-generated identifier", accessMode = Schema.AccessMode.READ_ONLY)
 	private long id;
 
 	@Size(min = 3, max = 100)
+	@Schema(description = "Counterparty name", example = "Acme Asset Management")
 	private String name;
 
 	@Column(length = 24)
+	@Schema(description = "Legal Entity Identifier", example = "549300EXAMPLE12345678")
 	private String lei;
 
 	@PositiveOrZero
 	@Column(precision = 19, scale = 2)
+	@Schema(description = "Total credit limit", example = "50000000.00")
 	private BigDecimal creditLimit;
 
 	@PositiveOrZero
 	@Column(precision = 19, scale = 2)
+	@Schema(description = "Remaining available credit; defaults to creditLimit when omitted on creation", example = "45012500.00")
 	private BigDecimal availableCredit;
 
 	public Counterparty() {

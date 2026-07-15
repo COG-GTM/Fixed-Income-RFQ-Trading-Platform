@@ -1,0 +1,20 @@
+# Redocly lint configuration for the Fixed-Income RFQ Trading Platform API spec.
+# Used by api-spec/validate.sh and CI to enforce spec correctness.
+extends:
+  - recommended
+rules:
+  # The current monolith exposes no authentication/authorization, so a global
+  # security scheme is intentionally absent. Re-enable once auth is introduced.
+  security-defined: off
+  # Local dev server URL is intentional; not an example.com placeholder.
+  no-server-example.com: off
+  # DELETE/POST endpoints return 200 with empty bodies today; documenting every
+  # 4xx is desirable but not enforced as an error.
+  operation-4xx-response: warn
+  # TradeConfirmationDto is documented as the confirmation-capability contract
+  # even though it is not bound to a monolith REST endpoint yet.
+  no-unused-components: off
+  # Structural correctness rules kept as errors.
+  no-invalid-media-type-examples: error
+  no-unresolved-refs: error
+  spec: error
