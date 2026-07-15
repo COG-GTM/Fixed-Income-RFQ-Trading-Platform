@@ -189,6 +189,26 @@ shippable and reversible.
 - Add **API contract tests** for the public REST surface (`/bonds`, `/counterparties`, `/rfqs`) so responses stay
   stable as internals move. Since `RfqDto` is already ID-based, these contracts are extraction-friendly.
 
+**Testing / validation:**
+1. Establish the green baseline: `cd monolith && ./mvnw clean test` — all of `IntegrationTest.java` must pass; capture this as the reference run.
+2. Boot the app (`./mvnw spring-boot:run`) and capture golden responses for the seed data (README §Seed Data) as fixtures:
+   ```bash
+   curl -s localhost:8080/counterparties > baseline/counterparties.json
+   curl -s localhost:8080/bonds          > baseline/bonds.json
+   curl -s localhost:8080/rfqs           > baseline/rfqs.json
+   ```
+3. Exercise the RFQ execution happy path and the two failure paths, asserting inventory/credit side effects:
+   ```bash
+   # happy path -> 201, status EXECUTED
+   curl -s -XPOST localhost:8080/rfqs -H 'Content-Type: application/json' \
+     -d '{"counterpartyId":1,"bondId":1,"notionalAmount":1000000,"side":"BUY","executionPrice":997500}'
+   # insufficient notional / credit -> error, and GET /bonds,/counterparties show NO change (atomicity)
+   ```
+4. Add API contract tests that pin the JSON shape of `/bonds`, `/counterparties`, `/rfqs` (e.g. `@SpringBootTest` +
+   `MockMvc` `jsonPath` assertions, or a REST-assured suite) and wire `mvn test` into CI as the required gate.
+
+**Acceptance:** baseline test suite green + contract tests committed and passing in CI.
+
 **Rationale:** You cannot safely strangle what you cannot verify. **Risks:** existing tests may under-specify edge
 behavior. **Rollback:** none needed — additive only.
 
@@ -209,6 +229,20 @@ Trade Confirmation is the natural first cut because:
 2. Point `confirmationms.url` at the new service and flip `use.confirmation.service=true`.
 3. Keep `TradeConfirmationService` (local logger) as the fallback for `use.confirmation.service=false`.
 
+**Testing / validation:**
+1. Unit-test the new confirmation service in isolation: `POST /confirmations/` with a valid `TradeConfirmationDto`
+   returns 2xx; malformed/negative `creditAmount` is rejected (mirrors the `@Positive` constraint in `TradeConfirmationDto`).
+2. Contract test the monolith→service boundary: with `use.confirmation.service=true` and `confirmationms.url` pointed at
+   a stub (WireMock/MockWebServer), `PATCH /counterparties/{id}` with `{"amount":"100","operation":"ADD"}` must issue
+   exactly one `POST` to `confirmations/` carrying `{counterpartyName, creditAmount}`.
+3. Toggle regression: with `use.confirmation.service=false`, the same PATCH must NOT call the remote service and must
+   still log via `TradeConfirmationService` — proving the fallback path is intact.
+4. Negative/resilience: point `confirmationms.url` at an unreachable/slow endpoint and confirm the credit-ADD behavior
+   under timeout matches the agreed policy (fail-safe vs. fail-fast).
+5. Re-run the full Phase 0 baseline suite — behavior of `/rfqs` must be unchanged (confirmation is off the RFQ path).
+
+**Acceptance:** both toggle states verified, contract test green, Phase 0 baseline still green.
+
 **Rationale:** proves the strangler toggle end-to-end with minimal blast radius. **Risks:** the remote call in
 `CounterpartyController` is synchronous with no timeout/retry today — a slow confirmation service could degrade the
 credit-add path; add timeouts and consider async/fire-and-forget. **Rollback:** set `use.confirmation.service=false` to
@@ -224,6 +258,18 @@ revert to the in-process logger instantly (no redeploy of behavior beyond config
 2. Update `RfqController.toDto` (`.../controller/RfqController.java:53-57`) to read the ID fields directly instead of
    navigating `getCounterparty().getId()` / `getBond().getId()`.
 3. Adjust `RFQExecutionSaga` to load Bond/Counterparty by ID explicitly (it already receives IDs via `RfqDto`).
+
+**Testing / validation:**
+1. Re-run `IntegrationTest.java` and the Phase 0 contract tests — the external `RfqDto` shape (already ID-based) must be
+   **byte-for-byte unchanged**; diff `GET /rfqs` output against the Phase 0 golden fixtures.
+2. Add a mapping unit test for `RfqController.toDto` asserting `counterpartyId`/`bondId` are populated from the new
+   scalar fields (not via `getCounterparty().getId()`).
+3. Referential-integrity test: `POST /rfqs` referencing a non-existent `bondId`/`counterpartyId` must return the same
+   not-found behavior as today (now enforced in app logic rather than FK) — add explicit cases.
+4. Persistence round-trip test: save and reload an `Rfq`, asserting the `counterparty_id`/`bond_id` columns still
+   hold the correct values after the entity refactor.
+
+**Acceptance:** RFQ JSON contract diff is empty vs. Phase 0 fixtures; new referential-integrity cases pass.
 
 **Rationale:** this is a prerequisite for separate datastores; it converts a physical join into a logical reference.
 **Risks:** loss of FK-enforced referential integrity (an RFQ can now reference a non-existent bond/counterparty) — must
@@ -245,6 +291,21 @@ compensating actions.
 3. Make each step an idempotent, individually-committed operation (local transaction per service call), coordinated by
    the saga.
 
+**Testing / validation:**
+1. Happy path unchanged: `POST /rfqs` with sufficient notional+credit still yields status `EXECUTED` and the same
+   notional/credit deductions as the Phase 0 baseline.
+2. **Compensation tests** (the core of this phase) — inject a failure at each step and assert full rollback:
+   - credit deduction fails after notional deducted ⇒ `Bond.addNotional` restores notional, RFQ ends `REJECTED`.
+   - RFQ persistence fails after both deductions ⇒ both `Bond.addNotional` and `Counterparty.addCredit` restore state.
+   Assert `GET /bonds` and `GET /counterparties` return to pre-trade values in every failure case.
+3. Idempotency test: replay the same `POST /rfqs` (same idempotency key) and assert notional/credit are deducted
+   **once**, not twice.
+4. Concurrency test: fire concurrent RFQs against the same bond/counterparty near the inventory/credit limit and assert
+   no oversell / negative balances.
+5. Toggle test: with the compensating saga disabled, the legacy `@Transactional` path still passes the baseline suite.
+
+**Acceptance:** every compensation case restores state exactly; idempotency + concurrency tests pass under repeated runs.
+
 **Rationale:** once §2.1 is gone and datastores diverge, the ACID rollback that the current comment relies on
 (`.../saga/RFQExecutionSaga.java:38-42`) no longer exists; compensation is the distributed replacement. **Risks:**
 partial failures, non-atomic visibility windows, and duplicate execution require idempotency keys and careful ordering;
@@ -262,6 +323,20 @@ until the compensating saga is proven; fall back to it if compensation misbehave
    operations (with confirmation already externalized in Phase 1).
 3. **RFQ (Execution)** last — it becomes a pure orchestrator holding only `rfqs`, referencing Bond and Counterparty by
    ID (Phase 2) and coordinating them through the compensating saga (Phase 3).
+
+**Testing / validation (repeat per extracted service):**
+1. Service-level suite: each new service passes its own unit/integration tests against its own datastore (Bond: notional
+   add/deduct + `InsufficientNotionalException`; Counterparty: credit add/deduct + `InsufficientCreditException`).
+2. Consumer-driven contract tests between the RFQ orchestrator and each dependency (e.g. Pact) so the orchestrator's
+   expectations of `/bonds` and `/counterparties` are verified against the real services.
+3. Data-migration validation: after moving a table to its own store, run a row-count + checksum reconciliation between
+   old and new stores; during dual-write, assert reads from both return identical results before cutover.
+4. End-to-end smoke: run the Phase 0 golden `POST /rfqs` scenarios against the fully distributed topology and diff
+   responses against the original fixtures.
+5. Resilience: kill/slow the Bond or Counterparty service mid-flow and assert the Phase 3 compensations fire and leave
+   consistent state; verify timeouts/circuit-breakers behave as configured.
+
+**Acceptance:** per-service suites green, migration reconciliation matches, distributed E2E diff vs. Phase 0 is empty.
 
 **Rationale:** the orchestrator can only be cleanly extracted after its dependencies are independent services and the
 saga no longer relies on a shared transaction. **Risks:** data migration of the shared H2 schema into per-service
