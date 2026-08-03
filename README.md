@@ -1,15 +1,20 @@
 # Fixed-Income RFQ Trading Platform
 
-A SpringBoot monolith simulating a **fixed-income Request-for-Quote (RFQ) trading platform**.
+A SpringBoot platform simulating a **fixed-income Request-for-Quote (RFQ) trading platform**, being migrated from a monolith to services using the strangler pattern.
+
+Modules:
+ - `monolith` — RFQ execution, counterparties, bonds (port `8080`)
+ - `confirmation-service` — trade confirmations, extracted from the monolith (port `8070`)
 
 Technologies used:
  - Java 11, Spring Boot, Spring Data JPA
  - H2 in-memory database
- - Maven
+ - Maven (multi-module)
 
 - [Fixed-Income RFQ Trading Platform](#fixed-income-rfq-trading-platform)
   - [Domain Entities](#domain-entities)
   - [REST Endpoints](#rest-endpoints)
+  - [Trade Confirmations](#trade-confirmations)
   - [Seed Data](#seed-data)
   - [Running the Application](#running-the-application)
   - [Testing](#testing)
@@ -41,7 +46,7 @@ Counterparty and Bond must be in place before executing an RFQ. If the bond has 
 
 A PATCH method endpoint exists for both `Counterparty` and `Bond` controllers to update credit / notional inventory.
 
-A trade confirmation is sent to a counterparty whenever credit is added, handled by `TradeConfirmationService.java`.
+A trade confirmation is sent to a counterparty whenever credit is added — see [Trade Confirmations](#trade-confirmations).
 
 ## REST Endpoints
 
@@ -64,6 +69,29 @@ A trade confirmation is sent to a counterparty whenever credit is added, handled
 | GET    | `/rfqs/{id}`           | Get an RFQ by ID                                 |
 | DELETE | `/rfqs/{id}`           | Delete an RFQ                                    |
 
+The `confirmation-service` exposes:
+
+| Method | Path                   | Description                                      |
+|--------|------------------------|--------------------------------------------------|
+| POST   | `/confirmations`       | Record a trade confirmation (JSON: `counterpartyName`, `creditAmount`) |
+| GET    | `/confirmations`       | List all trade confirmations                     |
+| GET    | `/confirmations/{id}`  | Get a trade confirmation by ID                   |
+
+## Trade Confirmations
+
+Trade confirmation is the first responsibility carved out of the monolith. The monolith
+delivers confirmations through the `TradeConfirmationSender` seam, and the
+`use.confirmation.service` toggle selects the implementation:
+
+| `use.confirmation.service` | Implementation                  | Behaviour                                            |
+|----------------------------|---------------------------------|------------------------------------------------------|
+| `false` (default)          | `LocalTradeConfirmationSender`  | Confirmation handled in-process by the monolith       |
+| `true`                     | `RemoteTradeConfirmationSender` | `POST {confirmation.service.url}confirmations/` to the `confirmation-service` |
+
+Everything else — RFQ execution and its credit / notional adjustments, the
+PENDING / QUOTED / EXECUTED / REJECTED statuses, and every HTTP response — is
+identical in both modes.
+
 ## Seed Data
 
 On startup the application loads:
@@ -73,6 +101,8 @@ On startup the application loads:
 
 ## Running the Application
 
+Run the monolith on its own (confirmations handled in-process):
+
 ```bash
 cd monolith
 ./mvnw spring-boot:run
@@ -80,11 +110,33 @@ cd monolith
 
 The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints.
 
-## Testing
+To run against the extracted service, start it first:
+
+```bash
+./mvnw -pl confirmation-service spring-boot:run
+```
+
+The confirmation-service starts on port `8070`; hit `/confirmations` to verify it. Then start the
+monolith with the toggle on:
 
 ```bash
 cd monolith
-./mvnw clean test
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--use.confirmation.service=true
 ```
 
-See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
+Adding credit (`PATCH /counterparties/{id}` with `{"amount":"250000.00","operation":"ADD"}`) now shows up
+under `GET http://localhost:8070/confirmations`. Point the monolith at a different host with
+`--confirmation.service.url=http://<host>:<port>/`.
+
+## Testing
+
+Build and test every module from the repository root:
+
+```bash
+./mvnw clean verify
+```
+
+See `IntegrationTest.java` for the use-cases covering RFQ execution, insufficient notional/credit, and
+missing counterparty/bond scenarios. `AbstractConfirmationParityIntegrationTest.java` runs one suite
+twice — once per value of `use.confirmation.service` — proving both paths behave identically, and
+`ConfirmationApiIntegrationTest.java` covers the confirmation-service API.
