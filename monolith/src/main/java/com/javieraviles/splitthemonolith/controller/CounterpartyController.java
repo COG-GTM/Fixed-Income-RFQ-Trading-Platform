@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,28 +18,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.javieraviles.splitthemonolith.confirmation.TradeConfirmationPort;
 import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
-import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
-import com.javieraviles.splitthemonolith.service.TradeConfirmationService;
 
 @RestController
 class CounterpartyController {
-
-	@Value(value = "${use.confirmation.service}")
-	private boolean useConfirmationService;
 
 	@Autowired
 	private CounterpartyRepository repository;
 
 	@Autowired
-	private TradeConfirmationService tradeConfirmationService;
-
-	@Autowired
-	private TradeConfirmationMicroserviceClient confirmationMsClient;
+	private TradeConfirmationPort tradeConfirmation;
 
 	@GetMapping("/counterparties")
 	List<Counterparty> getAll() {
@@ -79,12 +71,7 @@ class CounterpartyController {
 			final OperationEnum operation = OperationEnum.valueOf(creditUpdate.get("operation"));
 			if (operation == OperationEnum.ADD) {
 				counterparty.addCredit(creditAmount);
-				final TradeConfirmationDto confirmation = new TradeConfirmationDto(counterparty.getName(), creditAmount);
-				if (useConfirmationService) {
-					confirmationMsClient.sendConfirmation(confirmation);
-				} else {
-					tradeConfirmationService.sendTradeConfirmation(confirmation);
-				}
+				tradeConfirmation.sendConfirmation(new TradeConfirmationDto(counterparty.getName(), creditAmount));
 			} else {
 				counterparty.deductCredit(creditAmount);
 			}
