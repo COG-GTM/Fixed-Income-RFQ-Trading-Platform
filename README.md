@@ -88,3 +88,29 @@ cd monolith
 ```
 
 See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
+
+## Credit Service (strangler extraction)
+
+`credit-service/` is a standalone Spring Boot service that owns counterparty credit: it holds a
+`CreditAccount` per LEI and exposes credit checking / reservation over REST.
+
+| Method | Path                     | Description                                              |
+|--------|--------------------------|----------------------------------------------------------|
+| GET    | `/credit-accounts`       | List all credit accounts                                  |
+| POST   | `/credit-accounts`       | Register a credit account (`lei`, `counterpartyName`, `creditLimit`) |
+| GET    | `/credit-accounts/{lei}` | Get a credit account by LEI                               |
+| POST   | `/credit-checks`         | Check and reserve credit (`lei`, `amount`) — `409` on breach, `404` on unknown LEI |
+| POST   | `/credit-releases`       | Release a previously reserved amount                      |
+
+```bash
+cd credit-service
+./mvnw spring-boot:run   # port 8090
+./mvnw clean test
+```
+
+The monolith's `RFQExecutionSaga` calls the service behind the `use.credit.service` toggle
+(mirroring `use.confirmation.service`), which defaults to `false`. With the toggle off the saga
+deducts credit locally as before; with it on, credit is reserved remotely by LEI and the local
+`availableCredit` becomes a replica of the balance returned by the service. Rollback is a
+property flip — no code change.
+
