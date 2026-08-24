@@ -3,9 +3,9 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 COPY monolith/pom.xml pom.xml
-RUN mvn -B -ntp dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline
 COPY monolith/src src
-RUN mvn -B -ntp clean package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp clean package -DskipTests
 RUN java -Djarmode=tools -jar target/monolith.jar extract --layers --launcher --destination extracted
 
 FROM eclipse-temurin:21-jre AS runtime
