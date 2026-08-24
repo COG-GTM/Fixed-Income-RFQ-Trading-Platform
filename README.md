@@ -93,6 +93,7 @@ or toggles are hardcoded in Java code.
 | `JPA_OPEN_IN_VIEW`         | `false`                                  | Spring Data open-in-view                                         |
 | `JPA_SHOW_SQL`             | `false`                                  | Log generated SQL                                                |
 | `H2_CONSOLE_ENABLED`       | `false`                                  | Expose the H2 web console (local debugging only)                 |
+| `ERROR_INCLUDE_MESSAGE`    | `always`                                 | Include the `@ResponseStatus` reason (e.g. `Insufficient credit`) in error bodies |
 | `USE_CONFIRMATION_SERVICE` | `false`                                  | Feature toggle: route confirmations to ConfirmationMS instead of the in-process service |
 | `CONFIRMATION_SERVICE_URL` | `http://localhost:8070/`                 | Base URI of ConfirmationMS, used when the toggle is on           |
 | `MANAGEMENT_ENDPOINTS`     | `health,info`                            | Actuator endpoints exposed over HTTP                             |
