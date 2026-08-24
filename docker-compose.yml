@@ -1,0 +1,23 @@
+services:
+  rfq:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fixed-income-rfq:local
+    ports:
+      - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      DATASOURCE_URL: ${DATASOURCE_URL:-jdbc:h2:mem:rfqdb;DB_CLOSE_DELAY=-1}
+      DATASOURCE_USERNAME: ${DATASOURCE_USERNAME:-sa}
+      DATASOURCE_PASSWORD: ${DATASOURCE_PASSWORD:-}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      USE_CONFIRMATION_SERVICE: ${USE_CONFIRMATION_SERVICE:-false}
+      CONFIRMATION_SERVICE_URL: ${CONFIRMATION_SERVICE_URL:-http://localhost:8070/}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${SERVER_PORT:-8080}/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
