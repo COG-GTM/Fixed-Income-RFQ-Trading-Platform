@@ -139,6 +139,11 @@ See `IntegrationTest.java` for the HTTP-level use-cases covering RFQ execution, 
 and missing counterparty/bond scenarios, and `RFQExecutionSagaTest.java` for the saga-level tests asserting
 credit/notional adjustments, boundary conditions and transactional atomicity on failure.
 
+The seeding `CommandLineRunner` runs once per Spring context, so a new test class whose context configuration
+differs from an existing one must pin its own in-memory database name — otherwise the seed ISIN trips the unique
+constraint. `RFQExecutionSagaTest` does this with
+`@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:rfqdb-saga;DB_CLOSE_DELAY=-1")`.
+
 ## Continuous Integration
 
 `.github/workflows/ci.yml` runs on every push and pull request: it builds and tests on JDK 21, uploads the
