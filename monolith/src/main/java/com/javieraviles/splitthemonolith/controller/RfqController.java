@@ -51,7 +51,7 @@ class RfqController {
 	}
 
 	private RfqDto toDto(final Rfq rfq) {
-		return new RfqDto(rfq.getId(), rfq.getCounterparty().getId(), rfq.getBond().getId(),
+		return new RfqDto(rfq.getId(), rfq.getCounterpartyId(), rfq.getBond().getId(),
 				rfq.getNotionalAmount(), rfq.getSide(), rfq.getStatus(),
 				rfq.getExecutionPrice(), rfq.getCreatedAt());
 	}
