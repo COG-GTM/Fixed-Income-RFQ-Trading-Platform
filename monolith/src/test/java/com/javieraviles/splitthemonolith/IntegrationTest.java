@@ -7,17 +7,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.javieraviles.splitthemonolith.dto.CounterpartyDto;
 import com.javieraviles.splitthemonolith.dto.RfqDto;
 import com.javieraviles.splitthemonolith.entity.Bond;
-import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Side;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -36,6 +39,18 @@ public class IntegrationTest {
 	private static final ObjectMapper MAPPER = new ObjectMapper()
 			.registerModule(new JavaTimeModule());
 
+	private static final CreditServiceStub CREDIT_SERVICE = new CreditServiceStub();
+
+	@BeforeAll
+	public static void startCreditService() throws IOException {
+		CREDIT_SERVICE.start(CreditServiceStub.PORT);
+	}
+
+	@AfterAll
+	public static void stopCreditService() {
+		CREDIT_SERVICE.stop();
+	}
+
 	@Test
 	public void givenOneCounterparty_whenGetCounterparties_thenReturnJsonArray() throws Exception {
 		mvc.perform(get("/counterparties").contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
@@ -50,7 +65,7 @@ public class IntegrationTest {
 
 	@Test
 	public void whenExecuteRfq_thenReturnCreated() throws Exception {
-		final Counterparty cp = new Counterparty("Fidelity Investments",
+		final CounterpartyDto cp = newCounterparty("Fidelity Investments",
 				"549300FIDELITY00001", new BigDecimal("20000000.00"));
 		final Bond bond = new Bond("US912828ZT09", "US Treasury",
 				new BigDecimal("3.1250"), LocalDate.of(2032, 5, 15),
@@ -81,7 +96,7 @@ public class IntegrationTest {
 
 	@Test
 	public void whenExecuteRfq_withInsufficientNotional_thenReturnBadRequest() throws Exception {
-		final Counterparty cp = new Counterparty("BlackRock Fund Advisors",
+		final CounterpartyDto cp = newCounterparty("BlackRock Fund Advisors",
 				"549300BLACKROCK0001", new BigDecimal("30000000.00"));
 		final Bond bond = new Bond("US912828AB12", "US Treasury",
 				new BigDecimal("2.5000"), LocalDate.of(2031, 8, 15),
@@ -112,7 +127,7 @@ public class IntegrationTest {
 
 	@Test
 	public void whenExecuteRfq_withInsufficientCredit_thenReturnBadRequest() throws Exception {
-		final Counterparty cp = new Counterparty("Small Fund LLC",
+		final CounterpartyDto cp = newCounterparty("Small Fund LLC",
 				"549300SMALLFUND001", new BigDecimal("500000.00"));
 		final Bond bond = new Bond("US912828CD34", "US Treasury",
 				new BigDecimal("3.0000"), LocalDate.of(2033, 2, 15),
@@ -165,6 +180,11 @@ public class IntegrationTest {
 
 		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isNotFound());
+	}
+
+	private static CounterpartyDto newCounterparty(final String name, final String lei,
+			final BigDecimal creditLimit) {
+		return new CounterpartyDto(0L, name, lei, creditLimit, creditLimit);
 	}
 
 	private static long extractId(final MvcResult result) throws Exception {

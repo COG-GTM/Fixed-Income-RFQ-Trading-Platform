@@ -1,6 +1,6 @@
-package com.javieraviles.splitthemonolith.repository;
+package com.javieraviles.creditservice.repository;
 
-import com.javieraviles.splitthemonolith.entity.Counterparty;
+import com.javieraviles.creditservice.entity.Counterparty;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
