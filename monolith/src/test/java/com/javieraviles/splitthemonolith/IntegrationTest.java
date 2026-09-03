@@ -142,6 +142,62 @@ public class IntegrationTest {
 	}
 
 	@Test
+	public void whenExecuteRfq_withScaledMultipleOfLotSize_thenReturnCreated() throws Exception {
+		final Counterparty cp = new Counterparty("PIMCO Total Return",
+				"549300PIMCO00000001", new BigDecimal("40000000.00"));
+		final Bond bond = new Bond("US912828EF56", "US Treasury",
+				new BigDecimal("2.8750"), LocalDate.of(2034, 11, 15),
+				new BigDecimal("60000000.00"));
+
+		MvcResult resultCp = mvc.perform(post("/counterparties").content(asJsonString(cp))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		MvcResult resultBond = mvc.perform(post("/bonds").content(asJsonString(bond))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		final RfqDto rfq = new RfqDto();
+		rfq.setCounterpartyId(extractId(resultCp));
+		rfq.setBondId(extractId(resultBond));
+		rfq.setNotionalAmount(new BigDecimal("3000000.00"));
+		rfq.setSide(Side.BUY);
+		rfq.setExecutionPrice(new BigDecimal("2996250.00"));
+
+		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isCreated())
+				.andExpect(jsonPath("$.status", is("EXECUTED")));
+	}
+
+	@Test
+	public void whenExecuteRfq_withNonMultipleOfLotSize_thenReturnBadRequest() throws Exception {
+		final Counterparty cp = new Counterparty("Vanguard Bond Fund",
+				"549300VANGUARD0001", new BigDecimal("40000000.00"));
+		final Bond bond = new Bond("US912828GH78", "US Treasury",
+				new BigDecimal("2.6250"), LocalDate.of(2035, 4, 15),
+				new BigDecimal("60000000.00"));
+
+		MvcResult resultCp = mvc.perform(post("/counterparties").content(asJsonString(cp))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		MvcResult resultBond = mvc.perform(post("/bonds").content(asJsonString(bond))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		final RfqDto rfq = new RfqDto();
+		rfq.setCounterpartyId(extractId(resultCp));
+		rfq.setBondId(extractId(resultBond));
+		rfq.setNotionalAmount(new BigDecimal("1500000.00"));
+		rfq.setSide(Side.BUY);
+		rfq.setExecutionPrice(new BigDecimal("1498125.00"));
+
+		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest())
+				.andExpect(status().reason(containsString("minimum lot size")));
+	}
+
+	@Test
 	public void whenExecuteRfq_withNonExistentCounterparty_thenReturnNotFound() throws Exception {
 		final RfqDto rfq = new RfqDto();
 		rfq.setCounterpartyId(9999L);

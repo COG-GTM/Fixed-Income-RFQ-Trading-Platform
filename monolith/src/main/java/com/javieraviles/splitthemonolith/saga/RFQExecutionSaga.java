@@ -35,7 +35,7 @@ public class RFQExecutionSaga {
 	@Transactional
 	public Rfq executeRfq(final RfqDto rfqDto) {
 
-		if (!rfqDto.getNotionalAmount().remainder(MIN_LOT_SIZE).equals(BigDecimal.ZERO)) {
+		if (rfqDto.getNotionalAmount().remainder(MIN_LOT_SIZE).compareTo(BigDecimal.ZERO) != 0) {
 			throw new InvalidLotSizeException();
 		}
 
