@@ -1,5 +1,7 @@
 package com.javieraviles.splitthemonolith.saga;
 
+import java.math.BigDecimal;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,6 +11,7 @@ import com.javieraviles.splitthemonolith.entity.Bond;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.entity.Rfq;
 import com.javieraviles.splitthemonolith.entity.RfqStatus;
+import com.javieraviles.splitthemonolith.exception.InvalidLotSizeException;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
@@ -16,6 +19,9 @@ import com.javieraviles.splitthemonolith.repository.RfqRepository;
 
 @Component
 public class RFQExecutionSaga {
+
+	/** Minimum tradeable lot: RFQ notional must be a whole multiple of this. */
+	private static final BigDecimal MIN_LOT_SIZE = new BigDecimal("1000000");
 
 	@Autowired
 	private RfqRepository rfqRepository;
@@ -28,6 +34,10 @@ public class RFQExecutionSaga {
 
 	@Transactional
 	public Rfq executeRfq(final RfqDto rfqDto) {
+
+		if (!rfqDto.getNotionalAmount().remainder(MIN_LOT_SIZE).equals(BigDecimal.ZERO)) {
+			throw new InvalidLotSizeException();
+		}
 
 		final Bond bond = bondRepository.findById(rfqDto.getBondId())
 				.orElseThrow(() -> new ResourceNotFoundException());
