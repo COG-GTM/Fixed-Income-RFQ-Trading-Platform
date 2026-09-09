@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixed-Income RFQ Trading Platform — Reverse-Engineering &amp; Code-Forward Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --ink:#1f2933; --muted:#52606d; --line:#d9e2ec; --obs:#e8f1f8; --prop:#eef6ea; --amber:#fff3cd; --code:#f5f7fa; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); margin: 0; background:#fff; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 40px 48px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; padding: 6px 10px; border-left: 5px solid #486581; background: var(--obs); }
+  h2.proposed { border-left-color: #3f7d4a; background: var(--prop); }
+  h2 .tag { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); float: right; margin-top: 4px; }
+  h3 { font-size: 14px; margin: 16px 0 6px; color: var(--muted); }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 12.5px; }
+  th, td { border: 1px solid var(--line); padding: 4px 7px; vertical-align: top; text-align: left; }
+  th { background: #f0f4f8; font-weight: 600; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; background: var(--code); padding: 0 3px; border-radius: 3px; }
+  .flag { background: var(--amber); }
+  .fig { margin: 10px 0 4px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  .fig .cap { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .mermaid { display: flex; justify-content: center; }
+  .mermaid svg { max-width: 100%; height: auto; }
+  ol.rules li { margin: 3px 0; }
+  footer { margin-top: 36px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  @media print {
+    @page { size: A4; margin: 14mm 12mm; }
+    body { font-size: 11.5px; }
+    main { max-width: none; padding: 0; }
+    h2 { break-after: avoid; }
+    .fig, table { break-inside: avoid; }
+    .mermaid svg { max-height: 95mm; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: 'neutral', flowchart: { htmlLabels: true, curve: 'basis' }, sequence: { mirrorActors: false } });</script>
+</head>
+<body>
+<main>
+
+<h1>Fixed-Income RFQ Trading Platform — Reverse-Engineering &amp; Code-Forward Architecture</h1>
+<p class="sub">Repository <code>COG-GTM/Fixed-Income-RFQ-Trading-Platform</code> · commit <code>0b72d81</code> · Sections 2–5 are <b>observed</b> from source; sections 6–7 are <b>proposed</b>. Paths are relative to <code>monolith/src/main/java/com/javieraviles/splitthemonolith/</code> unless stated.</p>
+
+<!-- 1 -->
+<h2>1. Goals</h2>
+<p>This document is a knowledge base of the platform <i>as implemented</i> and a proposal for a domain-driven re-architecture with an incremental (strangler) roadmap. It is <b>not</b> a platform, runtime or language upgrade, and no application code was changed to produce it. The focus requested was data ownership between the monolith and any extracted services, plus pricing/market-data and messaging integrations.</p>
+
+<!-- 2 -->
+<h2>2. System as-is <span class="tag">observed</span></h2>
+<p>One deployable: a Spring Boot 2.2.6 / Java 11 REST service on port 8080 with an H2 in-memory database (<code>monolith/pom.xml:9-19</code>, <code>application.properties:2</code>). There is no UI, no scheduler and no message broker. The only external dependency is an optional trade-confirmation service at <code>http://localhost:8070/</code>, reached through a feature toggle that is off by default (<code>application.properties:3-4</code>). The extracted <code>orders</code> and <code>notifications</code> services referenced by the project's history were deleted in commit <code>78706eb</code>; only the HTTP client and toggle remain in the monolith.</p>
+
+<div class="fig">
+<pre class="mermaid">
+flowchart LR
+  client([REST clients]) -->|HTTP/JSON :8080| mono
+  subgraph mono["monolith — SplitTheMonolithApplication (:8080)"]
+    direction TB
+    ctl["controller/<br/>Counterparty · Bond · Rfq"]
+    saga["saga/RFQExecutionSaga<br/>@Transactional"]
+    svc["service/TradeConfirmationService<br/>(log only)"]
+    rc["restclient/TradeConfirmationMicroserviceClient"]
+    seed["CommandLineRunner seed"]
+    ctl --> saga
+    ctl -->|toggle off| svc
+    ctl -->|toggle on| rc
+  end
+  db[("H2 in-memory<br/>counterparties · bonds · rfqs")]
+  ctl --> db
+  saga --> db
+  seed --> db
+  rc -.->|POST confirmations/| ext["confirmation MS :8070<br/>(not in repo)"]
+  style ext fill:#fff3cd,stroke:#b7791f
+  style seed fill:#f0f4f8,stroke:#829ab1
+</pre>
+<div class="cap">Fig. 1 — Where does it run? One JVM, one in-memory store, one optional outbound HTTP call. Amber = external.</div>
+</div>
+
+<h3>Data ownership</h3>
+<table>
+<tr><th>Table</th><th>Writers</th><th>Readers</th><th>Status</th></tr>
+<tr><td><code>counterparties</code></td><td><code>CounterpartyController</code> POST/PUT/PATCH/DELETE (<code>:52,63-69,81-91,99</code>) · <code>RFQExecutionSaga.executeRfq</code> <code>:43</code> · seed <code>SplitTheMonolithApplication:48</code></td><td>Controller, saga <code>:34</code>, <code>RfqController</code> via eager join (<code>entity/Rfq.java:28</code>)</td><td class="flag">3 writers</td></tr>
+<tr><td><code>bonds</code></td><td><code>BondController</code> POST/PUT/PATCH/DELETE (<code>:39,50-57,70-73,81</code>) · saga <code>:37</code> · seed <code>:49</code></td><td>Controller, saga <code>:32</code>, <code>RfqController</code> via eager join (<code>Rfq.java:33</code>)</td><td class="flag">3 writers</td></tr>
+<tr><td><code>rfqs</code></td><td>saga <code>:45</code> · <code>RfqController.deleteRfq</code> <code>:50</code> · seed <code>:50</code></td><td><code>RfqController</code> <code>:33,44</code></td><td class="flag">3 writers</td></tr>
+</table>
+<p class="sub">Repositories are bare <code>JpaRepository</code>s; no SQL, <code>@Query</code>, migrations or schema files exist. <code>Counterparty</code> and <code>Bond</code> JPA entities are also the REST request bodies (<code>CounterpartyController:51</code>, <code>BondController:38</code>).</p>
+
+<!-- 3 -->
+<h2>3. Business logic <span class="tag">observed</span></h2>
+<table>
+<tr><th>#</th><th>Rule as implemented</th><th>Source</th></tr>
+<tr><td>R1</td><td>Execute RFQ: load bond and counterparty (404 if absent), deduct <code>notionalAmount</code> from bond, deduct <code>executionPrice</code> from credit, save RFQ as <code>EXECUTED</code> — one transaction, no compensation.</td><td><code>saga/RFQExecutionSaga.java:29-47</code></td></tr>
+<tr><td>R2</td><td><code>amount &gt; availableNotional</code> → <code>InsufficientNotionalException</code> → HTTP 400 "Insufficient notional".</td><td><code>entity/Bond.java:52-57</code></td></tr>
+<tr><td>R3</td><td><code>amount &gt; availableCredit</code> → <code>InsufficientCreditException</code> → HTTP 400 "Insufficient credit".</td><td><code>entity/Counterparty.java:58-63</code></td></tr>
+<tr><td>R4</td><td><code>Side</code> is stored but never branched on: BUY and SELL both deduct inventory and credit.</td><td><code>RFQExecutionSaga.java:37,43,46</code>; test <code>IntegrationTest.java:136-141</code></td></tr>
+<tr><td>R5</td><td>Only <code>EXECUTED</code> is ever assigned; <code>PENDING</code>, <code>QUOTED</code>, <code>REJECTED</code> are unreachable; client-supplied <code>status</code> is ignored.</td><td><code>entity/RfqStatus.java:4</code>; <code>RFQExecutionSaga.java:46</code></td></tr>
+<tr><td>R6</td><td><code>executionPrice</code> is taken verbatim from the request; nothing relates it to notional, coupon or a price source.</td><td><code>dto/RfqDto.java:30-31</code></td></tr>
+<tr><td>R7</td><td><code>availableCredit</code> defaults to <code>creditLimit</code> on first persist; thereafter <code>creditLimit</code> is not a ceiling — <code>addCredit</code> is unbounded and PUT sets <code>availableCredit</code> freely.</td><td><code>Counterparty.java:40-56</code>; <code>CounterpartyController.java:67</code></td></tr>
+<tr><td>R8</td><td>PATCH <code>{amount, operation}</code>, <code>operation ∈ {ADD, DEDUCT}</code>; any <code>IllegalArgumentException</code> (including a malformed amount) → 400 "wrong operation".</td><td><code>CounterpartyController.java:73-95</code>; <code>BondController.java:61-77</code></td></tr>
+<tr><td>R9</td><td>A "trade confirmation" is produced when credit is <i>added</i> via PATCH — not when an RFQ executes. Default path is a log line.</td><td><code>CounterpartyController.java:80-87</code>; <code>service/TradeConfirmationService.java:14-17</code></td></tr>
+<tr><td>R10</td><td>Bean-validation constraints are declared on DTOs/entities but no controller uses <code>@Valid</code>, so they are not enforced at the REST boundary.</td><td><code>RfqDto.java:16-31</code>; grep <code>@Valid</code> → none</td></tr>
+<tr><td>R11</td><td><code>createdAt = Instant.now()</code> at persist; no trade, settlement or business date; <code>maturityDate</code> is never checked.</td><td><code>entity/Rfq.java:69-72</code>; <code>Bond.java:30</code></td></tr>
+<tr><td>R12</td><td>Money: <code>BigDecimal</code> precision 19 scale 2 for amounts, 7/4 for coupon; no currency, no <code>RoundingMode</code> anywhere.</td><td><code>Counterparty.java:30,34</code>; <code>Bond.java:27,33</code>; <code>Rfq.java:38,50</code></td></tr>
+</table>
+
+<div class="fig">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as REST client
+  participant RC as RfqController
+  participant S as RFQExecutionSaga (@Transactional)
+  participant B as Bond entity
+  participant CP as Counterparty entity
+  participant DB as H2 (bonds · counterparties · rfqs)
+  C->>RC: POST /rfqs {counterpartyId, bondId, notionalAmount, side, executionPrice}
+  RC->>S: executeRfq(RfqDto)
+  S->>DB: findById(bondId) / findById(counterpartyId)
+  Note over S: 404 ResourceNotFound if either is missing
+  S->>B: deductNotional(notionalAmount)
+  Note over B: > availableNotional → 400 Insufficient notional
+  S->>CP: deductCredit(executionPrice)
+  Note over CP: > availableCredit → 400 Insufficient credit<br/>side is not consulted
+  S->>DB: save Rfq(status=EXECUTED, createdAt=now())
+  Note over S,DB: commit flushes bond + counterparty + rfq together
+  S-->>RC: Rfq
+  RC-->>C: 201 RfqDto (status EXECUTED)
+  Note over C,DB: no confirmation, event or price check occurs on this path
+</pre>
+<div class="cap">Fig. 2 — How does the key flow work? RFQ execution (<code>RFQExecutionSaga.executeRfq</code>) — client-priced, side-agnostic, straight to EXECUTED.</div>
+</div>
+
+<!-- 4 -->
+<h2>4. Integration points <span class="tag">observed</span></h2>
+<table>
+<tr><th>#</th><th>Point</th><th>Protocol / format</th><th>Direction</th><th>Caller</th><th>Classification</th></tr>
+<tr><td>I1</td><td>Trade confirmation service <code>POST {confirmationms.url}confirmations/</code></td><td>HTTP · JSON <code>TradeConfirmationDto{counterpartyName, creditAmount}</code></td><td>Outbound, synchronous</td><td><code>CounterpartyController.partialUpdateGeneric:84</code> when <code>use.confirmation.service=true</code></td><td class="flag">Direct <code>RestTemplate.exchange</code> (<code>restclient/…Client.java:25</code>); no timeout, retry or error mapping; called <i>before</i> <code>repository.save</code> (<code>:91</code>)</td></tr>
+<tr><td>I2</td><td>Local confirmation fallback</td><td>slf4j log</td><td>—</td><td><code>CounterpartyController:86</code></td><td>In-process (<code>TradeConfirmationService.java:15</code>)</td></tr>
+<tr><td>I3</td><td>Pricing / market data</td><td>—</td><td>—</td><td>—</td><td class="flag">Not found. Price is client-supplied (<code>RfqDto.java:30-31</code>).</td></tr>
+<tr><td>I4</td><td>Messaging (Kafka / JMS / AMQP), scheduled jobs</td><td>—</td><td>—</td><td>—</td><td class="flag">Not found (grep <code>Kafka|Jms|Rabbit|@Scheduled|@EventListener</code> → none).</td></tr>
+</table>
+
+<div class="fig">
+<pre class="mermaid">
+flowchart LR
+  subgraph mono["monolith (:8080)"]
+    direction LR
+    cpc["CounterpartyController<br/>holds toggle use.confirmation.service"]
+    rc["TradeConfirmationMicroserviceClient<br/>holds URL + path 'confirmations/'"]
+    svc["TradeConfirmationService<br/>log line"]
+    saga["RFQExecutionSaga<br/>no outbound call"]
+    cpc -->|"PATCH ADD, toggle on"| rc
+    cpc -->|"PATCH ADD, toggle off"| svc
+  end
+  rc -->|"HTTP POST JSON<br/>sync, before save, no timeout"| conf["Confirmation MS<br/>localhost:8070<br/>(config only, source removed 78706eb)"]
+  md["Pricing / market data<br/>NOT PRESENT — price arrives<br/>in the request body"] -.->|"executionPrice"| saga
+  mq["Message broker<br/>NOT PRESENT"]
+  style conf fill:#fff3cd,stroke:#b7791f
+  style md fill:#fff3cd,stroke:#b7791f,stroke-dasharray:4 3
+  style mq fill:#fff3cd,stroke:#b7791f,stroke-dasharray:4 3
+</pre>
+<div class="cap">Fig. 3 — Where is the external boundary? One direct HTTP call owned by a controller; pricing and messaging are absent (dashed amber).</div>
+</div>
+
+<!-- 5 -->
+<h2>5. Findings <span class="tag">observed</span></h2>
+<table>
+<tr><th>#</th><th>Finding</th><th>Root cause</th><th>Evidence</th></tr>
+<tr><td>F1</td><td>Every table has three writers (controllers, saga, seed). PUT endpoints bypass domain invariants by setting <code>availableCredit</code>/<code>availableNotional</code> directly.</td><td>Multiple writers</td><td><code>CounterpartyController.java:67</code>; <code>BondController.java:55</code></td></tr>
+<tr><td>F2</td><td>JPA entities are the REST contract for counterparties and bonds; <code>Rfq</code> eager-loads both. The <code>@PrePersist</code> default exists only to patch JSON-created entities.</td><td>Shared persistence model</td><td><code>CounterpartyController.java:51</code>; <code>entity/Rfq.java:28,33</code>; <code>Counterparty.java:40-45</code></td></tr>
+<tr><td>F3</td><td>No pricing or market-data source; <code>executionPrice</code> is trusted from the caller and never reconciled with notional, coupon or maturity.</td><td>Money not modelled · external knowledge</td><td><code>dto/RfqDto.java:30-31</code>; <code>RFQExecutionSaga.java:43,46</code></td></tr>
+<tr><td>F4</td><td><code>Side</code> has no effect: a SELL consumes bond inventory and counterparty credit exactly like a BUY.</td><td>Domain concept not modelled</td><td><code>RFQExecutionSaga.java:37-46</code>; <code>IntegrationTest.java:136-141</code></td></tr>
+<tr><td>F5</td><td>RFQ lifecycle collapsed: POST jumps to <code>EXECUTED</code>; no quote, accept/decline or rejection record. Three of four states are dead.</td><td>Domain concept not modelled</td><td><code>entity/RfqStatus.java:4</code>; <code>RFQExecutionSaga.java:46</code></td></tr>
+<tr><td>F6</td><td>"Trade confirmation" fires on credit ADD, not on execution; sent synchronously before the credit change is persisted, so a failed call aborts the save after a possibly-delivered confirmation.</td><td>External knowledge outside adapter</td><td><code>CounterpartyController.java:81-91</code>; <code>…MicroserviceClient.java:25</code></td></tr>
+<tr><td>F7</td><td>Toggle, URL, resource path and payload shape are spread across controller, client and properties; no anti-corruption layer.</td><td>External knowledge outside adapter</td><td><code>CounterpartyController.java:33,43,83-87</code>; <code>application.properties:3-4</code></td></tr>
+<tr><td>F8</td><td><code>creditLimit</code> is not a ceiling: <code>addCredit</code> is unbounded; PUT can set <code>availableCredit &gt; creditLimit</code>.</td><td>Money not modelled</td><td><code>Counterparty.java:54-56</code>; <code>CounterpartyController.java:67</code></td></tr>
+<tr><td>F9</td><td>Validation annotations are never enforced at the REST boundary (no <code>@Valid</code>); negative notionals and null sides reach the domain.</td><td>Shared persistence model</td><td><code>RfqDto.java:16-31</code>; controllers</td></tr>
+<tr><td>F10</td><td>Time is wall-clock only; no trade/settlement/business date; matured bonds remain tradable.</td><td>Time not modelled</td><td><code>entity/Rfq.java:69-72</code>; <code>Bond.java:30</code></td></tr>
+<tr><td>F11</td><td>No currency and no rounding policy; coupon (scale 4) and cash (scale 2) coexist with no conversion rule.</td><td>Money not modelled</td><td><code>Bond.java:27,33</code>; grep <code>RoundingMode</code> → none</td></tr>
+<tr><td>F12</td><td>No domain events or messaging: confirmations, blotter and risk cannot observe an execution; GET <code>/rfqs</code> reads the write tables through eager joins.</td><td>Reporting on write model</td><td><code>RfqController.java:33</code>; <code>Rfq.java:28,33</code></td></tr>
+<tr><td>F13</td><td>The startup seed runs in every profile, including tests, which depend on seeded id <code>1</code>.</td><td>Startup job coupling</td><td><code>SplitTheMonolithApplication.java:41-52</code>; <code>IntegrationTest.java:148,160</code></td></tr>
+<tr><td>F14</td><td>The documented monolith-to-microservices transition is not in the code: services, k8s and Docker artifacts were removed; the README still describes "sending" confirmations to counterparties, which the default path does not do.</td><td>Docs vs code drift</td><td>commit <code>78706eb</code>; <code>README.md</code>; <code>TradeConfirmationService.java:15</code></td></tr>
+</table>
+
+<!-- 6 -->
+<h2 class="proposed">6. Re-architecture <span class="tag">proposed</span></h2>
+<p>Six contexts fall out of the ownership table: one per table with a single natural owner, one anti-corruption layer per external system (including the pricing seam that does not exist yet), and a read model for the blotter.</p>
+
+<div class="fig">
+<pre class="mermaid">
+flowchart TB
+  api([REST / API gateway])
+  rfq["RFQ Lifecycle<br/><b>owns rfqs</b><br/>Submit → Quote → Execute / Reject"]
+  credit["Counterparty Credit<br/><b>owns counterparties</b><br/>ReserveCredit · ReleaseCredit · limit ceiling"]
+  inv["Bond Inventory<br/><b>owns bonds</b><br/>ReserveNotional · ReleaseNotional · maturity check"]
+  price["Pricing ACL<br/>PriceRfq → RfqPriced<br/>(seam for market data)"]
+  conf["Confirmation ACL<br/>outbox → SendConfirmation<br/>Delivered / Failed"]
+  blotter["Trade Blotter (read model)<br/>projections for GET /rfqs"]
+  mdx["Market-data vendor<br/>(future)"]
+  cms["Confirmation MS :8070"]
+  api --> rfq
+  api --> credit
+  api --> inv
+  rfq -->|"cmd ReserveCredit"| credit
+  rfq -->|"cmd ReserveNotional"| inv
+  rfq -->|"cmd PriceRfq"| price
+  rfq -.->|"evt RfqExecuted / RfqRejected"| conf
+  rfq -.->|"evt RfqExecuted / RfqQuoted"| blotter
+  credit -.->|"evt CreditAdjusted"| conf
+  credit -.->|"evt CreditReserved"| blotter
+  inv -.->|"evt NotionalReserved"| blotter
+  price -.-> mdx
+  conf --> cms
+  style price fill:#fff3cd,stroke:#b7791f
+  style conf fill:#fff3cd,stroke:#b7791f
+  style mdx fill:#fff3cd,stroke:#b7791f,stroke-dasharray:4 3
+  style cms fill:#fff3cd,stroke:#b7791f
+</pre>
+<div class="cap">Fig. 4 — What is the target? Solid arrows = commands (imperative); dashed = domain events (past tense). Amber = ACLs and external systems.</div>
+</div>
+
+<h3>Design rules</h3>
+<ol class="rules">
+<li>One writer per table. Other contexts change state only by command and observe it only by event.</li>
+<li>Entities never leave their context; each context publishes a DTO contract validated with <code>@Valid</code>.</li>
+<li><code>Side</code> drives direction: BUY reserves inventory and credit; SELL releases inventory and settles cash.</li>
+<li>Money = amount + currency + declared scale and rounding rule. Dates = trade, settlement and business date; maturity is checked at quote time.</li>
+<li>External calls happen after commit through an outbox; delivery failures are events, not HTTP 500s.</li>
+<li>Seed data is a profile-scoped fixture, not a startup job.</li>
+</ol>
+
+<h3>Target ownership map</h3>
+<table>
+<tr><th>Store</th><th>Today's writers</th><th>Owning context</th><th>Commands in</th><th>Events out</th></tr>
+<tr><td><code>rfqs</code></td><td><code>RfqController</code>, <code>RFQExecutionSaga</code>, seed</td><td>RFQ Lifecycle</td><td>SubmitRfq · QuoteRfq · ExecuteRfq · RejectRfq</td><td>RfqSubmitted · RfqQuoted · RfqExecuted · RfqRejected</td></tr>
+<tr><td><code>counterparties</code></td><td><code>CounterpartyController</code>, saga, seed</td><td>Counterparty Credit</td><td>RegisterCounterparty · AdjustCreditLimit · ReserveCredit · ReleaseCredit</td><td>CreditReserved · CreditRejected · CreditAdjusted</td></tr>
+<tr><td><code>bonds</code></td><td><code>BondController</code>, saga, seed</td><td>Bond Inventory</td><td>RegisterBond · ReserveNotional · ReleaseNotional · AdjustNotional</td><td>NotionalReserved · NotionalRejected · NotionalAdjusted</td></tr>
+<tr><td>price cache (new)</td><td>—</td><td class="flag">Pricing ACL</td><td>PriceRfq</td><td>RfqPriced · PriceUnavailable</td></tr>
+<tr><td>confirmation outbox (new)</td><td><code>…MicroserviceClient</code>, <code>TradeConfirmationService</code>, toggle</td><td class="flag">Confirmation ACL</td><td>SendConfirmation</td><td>ConfirmationDelivered · ConfirmationFailed</td></tr>
+<tr><td>blotter projection (new)</td><td>GET <code>/rfqs</code> today reads <code>rfqs</code> + joins</td><td>Trade Blotter</td><td>—</td><td>— (subscribes to all of the above)</td></tr>
+</table>
+
+<!-- 7 -->
+<h2 class="proposed">7. Roadmap <span class="tag">proposed · 0 of 6 slices complete</span></h2>
+<div class="fig">
+<pre class="mermaid">
+flowchart LR
+  s1["S1 Confirmation ACL<br/>outbox + port"] --> s2["S2 RFQ lifecycle<br/>state machine, Side, @Valid"] --> s3["S3 Pricing ACL<br/>computed executionPrice"] --> s4["S4 Bond Inventory<br/>owns bonds"] --> s5["S5 Counterparty Credit<br/>owns counterparties"] --> s6["S6 Trade Blotter<br/>read model"]
+  style s1 fill:#fff3cd,stroke:#b7791f
+  style s3 fill:#fff3cd,stroke:#b7791f
+</pre>
+<div class="cap">Fig. 5 — Strangler order: highest-risk / least-logic boundaries first (amber ACLs), then the context with the fewest dependants.</div>
+</div>
+<table>
+<tr><th>Slice</th><th>Scope</th><th>Done when</th><th>Status</th></tr>
+<tr><td>S1 Confirmation ACL</td><td>Move client, toggle and DTO behind a <code>ConfirmationPort</code>; write an outbox row inside the transaction; deliver asynchronously; also emit on execution.</td><td><code>CounterpartyController</code> references neither <code>RestTemplate</code>, <code>confirmationms.url</code> nor <code>use.confirmation.service</code>; a failing :8070 cannot block or roll back a credit change; an executed RFQ produces a confirmation.</td><td>Not started</td></tr>
+<tr><td>S2 RFQ Lifecycle</td><td>Submit → Quote → Execute/Reject state machine; <code>Side</code>-aware reservation; <code>@Valid</code> on all DTOs; publish RfqExecuted/RfqRejected.</td><td>PENDING, QUOTED and REJECTED are reachable through the API and covered by tests; a SELL no longer deducts credit.</td><td>Not started</td></tr>
+<tr><td>S3 Pricing ACL</td><td><code>PricingPort</code> computes <code>executionPrice</code> = price × notional / 100 with a named rounding rule and currency; client-supplied price rejected.</td><td>POST <code>/rfqs</code> rejects <code>executionPrice</code>; the price source is swappable by configuration; rounding rule has a test.</td><td>Not started</td></tr>
+<tr><td>S4 Bond Inventory</td><td>Own <code>bonds</code>; ReserveNotional/ReleaseNotional; remove entity-PUT.</td><td>Only Inventory code writes <code>bonds</code>; a matured bond cannot be reserved.</td><td>Not started</td></tr>
+<tr><td>S5 Counterparty Credit</td><td>Own <code>counterparties</code>; ReserveCredit/ReleaseCredit; enforce <code>availableCredit ≤ creditLimit</code>.</td><td>Only Credit code writes <code>counterparties</code>; the credit limit is a hard ceiling with a test.</td><td>Not started</td></tr>
+<tr><td>S6 Trade Blotter</td><td>Project events into a query table; serve GET <code>/rfqs</code> from it.</td><td>GET <code>/rfqs</code> no longer joins <code>counterparties</code>/<code>bonds</code>; <code>EAGER</code> fetch removed from <code>Rfq</code>.</td><td>Not started</td></tr>
+</table>
+
+<footer>
+Repository <code>COG-GTM/Fixed-Income-RFQ-Trading-Platform</code> · commit <code>0b72d8196381b524f364a26672db271fa395f385</code> · generated 2026-09-09 · produced by the Devin playbook "Reverse-Engineering &amp; Code-Forward Architecture (any legacy service portfolio)". Full evidence with file:line citations for every statement lives in the session inventory; no application code was changed.
+</footer>
+
+</main>
+</body>
+</html>
