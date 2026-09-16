@@ -64,10 +64,19 @@ function setBusy(busy) {
   refreshButton.disabled = busy;
 }
 
+function clearPreview() {
+  document.querySelector("#preview-status").textContent = "Ready to preview";
+  document.querySelector("#preview-detail").textContent = "Submit a preview to check current credit and inventory.";
+  document.querySelector("#preview-reasons").replaceChildren();
+  document.querySelector("#preview-balances").hidden = true;
+}
+
+form.addEventListener("input", clearPreview);
 form.addEventListener("change", showBalances);
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const body = JSON.stringify(ticket());
+  clearPreview();
   setBusy(true);
   message.textContent = "Executing RFQ…";
   try {
@@ -88,6 +97,7 @@ form.addEventListener("submit", async (event) => {
 });
 
 async function refresh() {
+  clearPreview();
   setBusy(true);
   try {
     await loadDesk();
@@ -98,6 +108,38 @@ async function refresh() {
     setBusy(false);
   }
 }
+
+document.querySelector("#preview-button").addEventListener("click", async () => {
+  if (!form.reportValidity()) return;
+  const body = JSON.stringify(ticket());
+  clearPreview();
+  setBusy(true);
+  document.querySelector("#preview-status").textContent = "Checking current balances…";
+  try {
+    const result = await request("/rfqs/preview", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body,
+    });
+    document.querySelector("#preview-status").textContent = result.eligible ? "Eligible at preview time" : "Not eligible";
+    document.querySelector("#preview-detail").textContent = "Credit, inventory, and RFQ history are unchanged by this preview.";
+    const labels = {
+      INSUFFICIENT_NOTIONAL: "Insufficient bond notional.",
+      INSUFFICIENT_CREDIT: "Insufficient counterparty credit.",
+    };
+    document.querySelector("#preview-reasons").replaceChildren(...result.reasons.map((reason) => {
+      const item = document.createElement("li");
+      item.textContent = labels[reason] || reason;
+      return item;
+    }));
+    document.querySelector("#remaining-credit").textContent = currency.format(result.remainingCredit);
+    document.querySelector("#remaining-notional").textContent = currency.format(result.remainingNotional);
+    document.querySelector("#preview-balances").hidden = false;
+  } catch (error) {
+    document.querySelector("#preview-status").textContent = "Preview unavailable";
+    document.querySelector("#preview-detail").textContent = error.message;
+  } finally {
+    setBusy(false);
+  }
+});
 
 refreshButton.addEventListener("click", refresh);
 refresh();

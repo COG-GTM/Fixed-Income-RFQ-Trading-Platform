@@ -40,20 +40,28 @@
             <label for="settlement">Total settlement amount</label>
             <input id="settlement" name="executionPrice" type="number" min="0.01" step="0.01" value="4987500.00" required aria-describedby="settlement-help">
             <p id="settlement-help" class="help">The API calls this executionPrice. It is the total amount deducted from credit, not a unit price.</p>
-            <div class="actions"><button id="execute" type="submit">Execute RFQ</button></div>
+            <div class="actions">
+              <button id="preview-button" class="secondary" type="button">Preview eligibility</button>
+              <button id="execute" type="submit">Execute RFQ</button>
+            </div>
           </fieldset>
         </form>
         <p id="message" role="status" aria-live="polite"></p>
       </section>
       <section class="panel" id="check-panel">
-        <div class="section-title"><span class="step">02</span><h2>Understand the rules</h2></div>
-        <p class="lead">Two independent limits govern this example.</p>
-        <dl class="rules">
-          <div><dt>Credit</dt><dd>Total settlement amount must fit within the counterparty's available credit.</dd></div>
-          <div><dt>Inventory</dt><dd>Requested notional must fit within the bond's available notional.</dd></div>
-          <div><dt>Execution</dt><dd>The existing transaction deducts both amounts for either side. The workshop preserves that simplified model.</dd></div>
+        <div class="section-title"><span class="step">02</span><h2>Pre-trade check</h2></div>
+        <p class="lead">Inspect the impact without changing the desk.</p>
+        <div class="outcome" role="status" aria-live="polite">
+          <strong id="preview-status">Ready to preview</strong>
+          <span id="preview-detail" class="help">Submit a preview to check current credit and inventory.</span>
+        </div>
+        <ul id="preview-reasons"></ul>
+        <dl class="rules" id="preview-balances" hidden>
+          <div><dt>Credit after this RFQ</dt><dd id="remaining-credit"></dd></div>
+          <div><dt>Notional after this RFQ</dt><dd id="remaining-notional"></dd></div>
         </dl>
-        <p class="help">The seeded historical RFQ does not reconcile opening balances. Treat the displayed balances as the starting state.</p>
+        <p class="help">A preview reserves nothing. Execution checks current balances again. This simulation deducts credit and notional for either BUY or SELL.</p>
+        <p class="help">The seeded historical RFQ does not reconcile opening balances.</p>
       </section>
     </div>
     <section class="panel ledger">

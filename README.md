@@ -90,6 +90,21 @@ Use JDK 11 and check `./mvnw --version` (Windows: `.\mvnw.cmd --version`)
 before starting. Stop the server and start it again to reset the in-memory H2
 data.
 
+The reference console includes **Preview eligibility**. `POST /rfqs/preview`
+accepts the same ticket fields as `POST /rfqs`: positive `counterpartyId` and
+`bondId`, positive `notionalAmount` and `executionPrice`, and `side` (`BUY` or
+`SELL`). Invalid requests return 400; unknown resources return 404.
+
+A valid preview returns 200 with `eligible`, `reasons`, `availableCredit`,
+`availableNotional`, `remainingCredit`, and `remainingNotional`. It reports
+`INSUFFICIENT_NOTIONAL` and/or `INSUFFICIENT_CREDIT` without changing balances
+or saving an RFQ. Exact capacity is eligible. Negative remaining capacity
+shows a shortfall.
+
+Preview is advisory and reserves nothing. Execution still runs the existing
+transaction against current state. This exercise does not provide concurrent
+reservation, execution idempotency, or production trading controls.
+
 This is a training simulation. The seed RFQ is historical display data and does
 not deduct from the opening balances. `executionPrice` is the total settlement
 amount, not a unit price. The simplified execution model deducts credit and
