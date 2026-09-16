@@ -80,6 +80,21 @@ cd monolith
 
 The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints.
 
+Open http://localhost:8080 for the workshop console. It displays the current
+counterparty credit, bond inventory, RFQ ticket, and executed RFQs. All assets
+are served by Spring Boot; Node, Docker, and external market-data services are
+not required.
+
+On Windows PowerShell, run `.\mvnw.cmd spring-boot:run` from `monolith`.
+Use JDK 11 and check `./mvnw --version` (Windows: `.\mvnw.cmd --version`)
+before starting. Stop the server and start it again to reset the in-memory H2
+data.
+
+This is a training simulation. The seed RFQ is historical display data and does
+not deduct from the opening balances. `executionPrice` is the total settlement
+amount, not a unit price. The simplified execution model deducts credit and
+notional for either BUY or SELL.
+
 ## Testing
 
 ```bash
