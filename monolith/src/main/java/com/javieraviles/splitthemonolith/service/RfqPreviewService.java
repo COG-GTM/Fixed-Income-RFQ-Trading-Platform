@@ -8,8 +8,10 @@ import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RfqPreviewService {
@@ -29,6 +31,10 @@ public class RfqPreviewService {
                 .orElseThrow(ResourceNotFoundException::new);
         final Counterparty counterparty = counterpartyRepository.findById(request.getCounterpartyId())
                 .orElseThrow(ResourceNotFoundException::new);
+        if (bond.getAvailableNotional() == null || counterparty.getAvailableCredit() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Preview unavailable: credit and notional balances must be configured");
+        }
         return calculator.evaluate(request.getNotionalAmount(), request.getExecutionPrice(),
                 bond.getAvailableNotional(), counterparty.getAvailableCredit());
     }

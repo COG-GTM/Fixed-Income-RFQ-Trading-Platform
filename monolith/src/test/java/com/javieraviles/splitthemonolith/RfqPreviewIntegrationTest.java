@@ -146,6 +146,47 @@ class RfqPreviewIntegrationTest {
         assertDesk("50.00", "100.00", initialCount);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"/rfqs", "/rfqs/preview"})
+    void rejectsAmountsThatCannotBeStoredExactly(String endpoint) throws Exception {
+        for (String invalid : new String[] {"0.001", "100000000000000000.00"}) {
+            request.setNotionalAmount(new BigDecimal(invalid));
+            request.setExecutionPrice(BigDecimal.ONE);
+            mvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(request))).andExpect(status().isBadRequest());
+            request.setNotionalAmount(BigDecimal.ONE);
+            request.setExecutionPrice(new BigDecimal(invalid));
+            mvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(request))).andExpect(status().isBadRequest());
+        }
+        assertDesk("50.00", "100.00", initialCount);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"credit", "notional"})
+    void incompleteStoredBalancesReturnAConflict(String missing) throws Exception {
+        if ("credit".equals(missing)) {
+            Counterparty counterparty = counterparties.findById(request.getCounterpartyId()).orElseThrow();
+            counterparty.setAvailableCredit(null);
+            counterparty.setCreditLimit(null);
+            counterparties.save(counterparty);
+        } else {
+            Bond bond = bonds.findById(request.getBondId()).orElseThrow();
+            bond.setAvailableNotional(null);
+            bonds.save(bond);
+        }
+        mvc.perform(post("/rfqs/preview").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(request))).andExpect(status().isConflict());
+        assertThat(rfqs.count()).isEqualTo(initialCount);
+        if ("credit".equals(missing)) {
+            assertThat(counterparties.findById(request.getCounterpartyId()).orElseThrow()
+                    .getAvailableCredit()).isNull();
+        } else {
+            assertThat(bonds.findById(request.getBondId()).orElseThrow()
+                    .getAvailableNotional()).isNull();
+        }
+    }
+
     private void assertDesk(String credit, String notional, long count) {
         assertThat(counterparties.findById(request.getCounterpartyId()).orElseThrow()
                 .getAvailableCredit()).isEqualByComparingTo(credit);

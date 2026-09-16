@@ -93,7 +93,9 @@ data.
 The reference console includes **Preview eligibility**. `POST /rfqs/preview`
 accepts the same ticket fields as `POST /rfqs`: positive `counterpartyId` and
 `bondId`, positive `notionalAmount` and `executionPrice`, and `side` (`BUY` or
-`SELL`). Invalid requests return 400; unknown resources return 404.
+`SELL`). Amounts accept up to 17 integer digits and two fractional digits,
+matching the database's decimal columns. Invalid requests return 400; unknown
+resources return 404. Preview returns 409 when a stored balance is missing.
 
 A valid preview returns 200 with `eligible`, `reasons`, `availableCredit`,
 `availableNotional`, `remainingCredit`, and `remainingNotional`. It reports
