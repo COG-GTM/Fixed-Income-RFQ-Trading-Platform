@@ -298,6 +298,30 @@ public class IntegrationTest {
 				.andExpect(status().reason(containsString("Insufficient credit")));
 	}
 
+	@Test
+	public void whenCreditLimitIsLowered_thenCreditAlreadyConsumedIsPreserved() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Thornbury Bond Fund", "549300THORNBURY001",
+						new BigDecimal("100.00")),
+				new Bond("US912828UV34", "US Treasury", new BigDecimal("3.7500"),
+						LocalDate.of(2037, 8, 31), new BigDecimal("1000000.00")));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+
+		mvc.perform(put("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.content("{\"name\":\"Thornbury Bond Fund\",\"lei\":\"549300THORNBURY001\","
+						+ "\"creditLimit\":60.00}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk());
+
+		assertAmount("10.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("50.00"))
+				.andExpect(status().isBadRequest())
+				.andExpect(status().reason(containsString("Insufficient credit")));
+	}
+
 	private enum Entity {
 		COUNTERPARTY, BOND
 	}
