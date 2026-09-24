@@ -277,6 +277,27 @@ public class IntegrationTest {
 		assertAmount("50.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
 	}
 
+	@Test
+	public void whenCreditLimitIsLowered_thenAvailableCreditCannotExceedIt() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Merrow Street Credit", "549300MERROWSTREET1",
+						new BigDecimal("100.00")),
+				new Bond("US912828ST90", "US Treasury", new BigDecimal("3.0000"),
+						LocalDate.of(2036, 11, 30), new BigDecimal("1000000.00")));
+
+		mvc.perform(put("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.content("{\"name\":\"Merrow Street Credit\",\"lei\":\"549300MERROWSTREET1\","
+						+ "\"creditLimit\":50.00}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk());
+
+		assertAmount("50.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("80.00"))
+				.andExpect(status().isBadRequest())
+				.andExpect(status().reason(containsString("Insufficient credit")));
+	}
+
 	private enum Entity {
 		COUNTERPARTY, BOND
 	}

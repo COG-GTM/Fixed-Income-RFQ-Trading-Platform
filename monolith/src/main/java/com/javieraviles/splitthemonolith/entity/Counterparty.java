@@ -110,11 +110,17 @@ public class Counterparty {
 
 	/**
 	 * An omitted limit keeps the currently approved one: credit lines are
-	 * changed by supplying a new figure, never by clearing the field.
+	 * changed by supplying a new figure, never by clearing the field. A
+	 * reduced line also brings the available balance down with it, so no more
+	 * than the approved amount can ever be spent.
 	 */
 	public void setCreditLimit(final BigDecimal creditLimit) {
-		if (creditLimit != null) {
-			this.creditLimit = creditLimit;
+		if (creditLimit == null) {
+			return;
+		}
+		this.creditLimit = creditLimit;
+		if (this.availableCredit != null) {
+			this.availableCredit = this.availableCredit.min(creditLimit);
 		}
 	}
 
@@ -123,11 +129,14 @@ public class Counterparty {
 	}
 
 	/**
-	 * An omitted balance keeps the credit already consumed by open trades.
+	 * An omitted balance keeps the credit already consumed by open trades, and
+	 * a supplied one is bounded by the approved line.
 	 */
 	public void setAvailableCredit(final BigDecimal availableCredit) {
-		if (availableCredit != null) {
-			this.availableCredit = availableCredit;
+		if (availableCredit == null) {
+			return;
 		}
+		this.availableCredit = this.creditLimit == null ? availableCredit
+				: availableCredit.min(this.creditLimit);
 	}
 }
