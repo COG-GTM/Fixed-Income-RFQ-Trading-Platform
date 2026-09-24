@@ -8,6 +8,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
 import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
@@ -39,6 +40,7 @@ public class Counterparty {
 	}
 
 	@PrePersist
+	@PreUpdate
 	private void initCreditBalances() {
 		if (this.availableCredit == null && this.creditLimit != null) {
 			this.availableCredit = this.creditLimit;
