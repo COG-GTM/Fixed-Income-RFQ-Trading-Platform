@@ -64,7 +64,7 @@ public class Counterparty {
 	public void releaseCredit(final BigDecimal amount) {
 		requirePositive(amount);
 		final BigDecimal released = this.availableCredit.add(amount);
-		this.availableCredit = released.min(this.creditLimit);
+		this.availableCredit = this.creditLimit == null ? released : released.min(this.creditLimit);
 	}
 
 	public void deductCredit(final BigDecimal amount) {
