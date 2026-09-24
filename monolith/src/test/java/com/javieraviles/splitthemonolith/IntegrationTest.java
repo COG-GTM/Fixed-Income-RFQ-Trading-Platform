@@ -224,6 +224,30 @@ public class IntegrationTest {
 		assertAmount("18999999.99", availableCredit(ids.get(Entity.COUNTERPARTY)));
 	}
 
+	@Test
+	public void whenExecuteSellRfq_withoutApprovedCreditLimit_thenCreditIsNotGrantedByTheSell() throws Exception {
+		final MvcResult resultCp = mvc.perform(post("/counterparties")
+				.content("{\"name\":\"Eastgate Credit Fund\",\"lei\":\"549300EASTGATE0001\","
+						+ "\"availableCredit\":100.00}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+		final MvcResult resultBond = mvc.perform(post("/bonds")
+				.content(asJsonString(new Bond("US912828OP56", "US Treasury", new BigDecimal("1.7500"),
+						LocalDate.of(2031, 5, 31), new BigDecimal("1000000.00"))))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		final Map<Entity, Long> ids = new EnumMap<>(Entity.class);
+		ids.put(Entity.COUNTERPARTY, extractId(resultCp));
+		ids.put(Entity.BOND, extractId(resultBond));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.SELL, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+
+		assertAmount("1500000.00", availableNotional(ids.get(Entity.BOND)));
+		assertAmount("100.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
 	private enum Entity {
 		COUNTERPARTY, BOND
 	}
