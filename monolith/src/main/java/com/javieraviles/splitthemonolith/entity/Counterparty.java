@@ -39,9 +39,12 @@ public class Counterparty {
 	}
 
 	@PrePersist
-	private void initAvailableCredit() {
+	private void initCreditBalances() {
 		if (this.availableCredit == null && this.creditLimit != null) {
 			this.availableCredit = this.creditLimit;
+		}
+		if (this.creditLimit == null && this.availableCredit != null) {
+			this.creditLimit = this.availableCredit;
 		}
 	}
 
@@ -59,15 +62,12 @@ public class Counterparty {
 
 	/**
 	 * Gives back credit consumed by previous exposure, never taking available
-	 * credit above the approved limit. A counterparty with no approved limit
-	 * has no line to give back, so its available credit is left untouched.
+	 * credit above the approved limit.
 	 */
 	public void releaseCredit(final BigDecimal amount) {
 		requirePositive(amount);
-		if (this.creditLimit == null) {
-			return;
-		}
-		this.availableCredit = this.availableCredit.add(amount).min(this.creditLimit);
+		final BigDecimal released = this.availableCredit.add(amount);
+		this.availableCredit = this.creditLimit == null ? released : released.min(this.creditLimit);
 	}
 
 	public void deductCredit(final BigDecimal amount) {
