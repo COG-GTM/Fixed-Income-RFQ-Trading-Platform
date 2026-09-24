@@ -12,6 +12,7 @@ import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientCreditException;
+import com.javieraviles.splitthemonolith.exception.InvalidAmountException;
 
 @Entity(name = "counterparties")
 public class Counterparty {
@@ -38,9 +39,12 @@ public class Counterparty {
 	}
 
 	@PrePersist
-	private void initAvailableCredit() {
+	private void initCreditBalances() {
 		if (this.availableCredit == null && this.creditLimit != null) {
 			this.availableCredit = this.creditLimit;
+		}
+		if (this.creditLimit == null && this.availableCredit != null) {
+			this.creditLimit = this.availableCredit;
 		}
 	}
 
@@ -52,14 +56,32 @@ public class Counterparty {
 	}
 
 	public void addCredit(final BigDecimal amount) {
+		requirePositive(amount);
 		this.availableCredit = this.availableCredit.add(amount);
 	}
 
+	/**
+	 * Gives back credit consumed by previous exposure, never taking available
+	 * credit above the approved limit.
+	 */
+	public void releaseCredit(final BigDecimal amount) {
+		requirePositive(amount);
+		final BigDecimal released = this.availableCredit.add(amount);
+		this.availableCredit = this.creditLimit == null ? released : released.min(this.creditLimit);
+	}
+
 	public void deductCredit(final BigDecimal amount) {
+		requirePositive(amount);
 		if (amount.compareTo(this.availableCredit) > 0) {
 			throw new InsufficientCreditException();
 		}
 		this.availableCredit = this.availableCredit.subtract(amount);
+	}
+
+	private static void requirePositive(final BigDecimal amount) {
+		if (amount == null || amount.signum() <= 0) {
+			throw new InvalidAmountException();
+		}
 	}
 
 	public long getId() {
@@ -86,7 +108,22 @@ public class Counterparty {
 		return creditLimit;
 	}
 
+	/**
+	 * An omitted limit keeps the currently approved one: credit lines are
+	 * changed by supplying a new figure, never by clearing the field. Credit
+	 * already consumed by open trades survives the change, so the balance
+	 * becomes the new line less that exposure, never below zero.
+	 */
 	public void setCreditLimit(final BigDecimal creditLimit) {
+		if (creditLimit == null) {
+			return;
+		}
+		if (this.availableCredit != null) {
+			final BigDecimal consumed = this.creditLimit == null ? BigDecimal.ZERO
+					: this.creditLimit.subtract(this.availableCredit);
+			this.availableCredit = creditLimit.subtract(consumed).max(BigDecimal.ZERO)
+					.min(creditLimit);
+		}
 		this.creditLimit = creditLimit;
 	}
 
@@ -94,7 +131,15 @@ public class Counterparty {
 		return availableCredit;
 	}
 
+	/**
+	 * An omitted balance keeps the credit already consumed by open trades, and
+	 * a supplied one is bounded by the approved line.
+	 */
 	public void setAvailableCredit(final BigDecimal availableCredit) {
-		this.availableCredit = availableCredit;
+		if (availableCredit == null) {
+			return;
+		}
+		this.availableCredit = this.creditLimit == null ? availableCredit
+				: availableCredit.min(this.creditLimit);
 	}
 }

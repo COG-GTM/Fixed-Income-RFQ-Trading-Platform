@@ -2,13 +2,17 @@ package com.javieraviles.splitthemonolith;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.EnumMap;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +29,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -114,6 +119,7 @@ public class IntegrationTest {
 	public void whenExecuteRfq_withInsufficientCredit_thenReturnBadRequest() throws Exception {
 		final Counterparty cp = new Counterparty("Small Fund LLC",
 				"549300SMALLFUND001", new BigDecimal("500000.00"));
+
 		final Bond bond = new Bond("US912828CD34", "US Treasury",
 				new BigDecimal("3.0000"), LocalDate.of(2033, 2, 15),
 				new BigDecimal("50000000.00"));
@@ -133,12 +139,239 @@ public class IntegrationTest {
 		rfq.setCounterpartyId(cpId);
 		rfq.setBondId(bondId);
 		rfq.setNotionalAmount(new BigDecimal("1000000.00"));
-		rfq.setSide(Side.SELL);
+		rfq.setSide(Side.BUY);
 		rfq.setExecutionPrice(new BigDecimal("999000.00"));
 
 		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest())
 				.andExpect(status().reason(containsString("Insufficient credit")));
+	}
+
+	@Test
+	public void whenExecuteSellRfq_thenReturnNotionalToInventoryAndReleaseCredit() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Northbridge Capital", "549300NORTHBRIDGE1",
+						new BigDecimal("10000000.00")),
+				new Bond("US912828EF56", "US Treasury", new BigDecimal("2.8750"),
+						LocalDate.of(2030, 6, 30), new BigDecimal("5000000.00")));
+
+		executeRfq(ids, new BigDecimal("1000000.00"), Side.BUY, new BigDecimal("2000000.00"))
+				.andExpect(status().isCreated());
+
+		executeRfq(ids, new BigDecimal("1000000.00"), Side.SELL, new BigDecimal("2000000.00"))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.side", is("SELL")));
+
+		assertAmount("5000000.00", availableNotional(ids.get(Entity.BOND)));
+		assertAmount("10000000.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenExecuteSellRfq_thenCreditIsNotReleasedAboveTheApprovedLimit() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Harbour Point Advisors", "549300HARBOURPOINT1",
+						new BigDecimal("1000000.00")),
+				new Bond("US912828GH78", "US Treasury", new BigDecimal("3.5000"),
+						LocalDate.of(2034, 1, 31), new BigDecimal("1000000.00")));
+
+		executeRfq(ids, new BigDecimal("2000000.00"), Side.SELL, new BigDecimal("1980000.00"))
+				.andExpect(status().isCreated());
+
+		assertAmount("3000000.00", availableNotional(ids.get(Entity.BOND)));
+		assertAmount("1000000.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenExecuteRfq_withNegativeNotional_thenRejectAndLeaveInventoryUntouched() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Cedar Lane Partners", "549300CEDARLANE0001",
+						new BigDecimal("5000000.00")),
+				new Bond("US912828IJ90", "US Treasury", new BigDecimal("2.1250"),
+						LocalDate.of(2029, 9, 30), new BigDecimal("1000000.00")));
+
+		executeRfq(ids, new BigDecimal("-1000000.00"), Side.BUY, new BigDecimal("990000.00"))
+				.andExpect(status().isBadRequest());
+
+		assertAmount("1000000.00", availableNotional(ids.get(Entity.BOND)));
+		assertAmount("5000000.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenExecuteRfq_withNegativeExecutionPrice_thenRejectAndLeaveCreditUntouched() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Westfall Income Fund", "549300WESTFALL0001",
+						new BigDecimal("5000000.00")),
+				new Bond("US912828KL12", "US Treasury", new BigDecimal("4.0000"),
+						LocalDate.of(2035, 3, 31), new BigDecimal("9000000.00")));
+
+		executeRfq(ids, new BigDecimal("1000000.00"), Side.BUY, new BigDecimal("-990000.00"))
+				.andExpect(status().isBadRequest());
+
+		assertAmount("9000000.00", availableNotional(ids.get(Entity.BOND)));
+		assertAmount("5000000.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenExecuteRfq_withSubCentSettlementAmount_thenCreditMatchesRecordedTrade() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Ravenswood Bond Fund", "549300RAVENSWOOD01",
+						new BigDecimal("20000000.00")),
+				new Bond("US912828MN34", "US Treasury", new BigDecimal("3.2500"),
+						LocalDate.of(2033, 7, 31), new BigDecimal("50000000.00")));
+
+		final MvcResult result = executeRfq(ids, new BigDecimal("1000000.00"), Side.BUY,
+				new BigDecimal("1000000.005")).andExpect(status().isCreated()).andReturn();
+
+		assertAmount("1000000.01", decimalField(result, "executionPrice"));
+		assertAmount("18999999.99", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenCounterpartyHasNoCreditLimit_thenSellRestoresCreditWithoutExceedingIt() throws Exception {
+		final MvcResult resultCp = mvc.perform(post("/counterparties")
+				.content("{\"name\":\"Eastgate Credit Fund\",\"lei\":\"549300EASTGATE0001\","
+						+ "\"availableCredit\":100.00}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+		final MvcResult resultBond = mvc.perform(post("/bonds")
+				.content(asJsonString(new Bond("US912828OP56", "US Treasury", new BigDecimal("1.7500"),
+						LocalDate.of(2031, 5, 31), new BigDecimal("1000000.00"))))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		final Map<Entity, Long> ids = new EnumMap<>(Entity.class);
+		ids.put(Entity.COUNTERPARTY, extractId(resultCp));
+		ids.put(Entity.BOND, extractId(resultBond));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+		assertAmount("50.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.SELL, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+		assertAmount("1000000.00", availableNotional(ids.get(Entity.BOND)));
+		assertAmount("100.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.SELL, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+		assertAmount("100.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenUpdateCounterparty_withoutBalances_thenConsumedCreditIsPreserved() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Larkspur Total Return", "549300LARKSPUR0001",
+						new BigDecimal("100.00")),
+				new Bond("US912828QR78", "US Treasury", new BigDecimal("2.5000"),
+						LocalDate.of(2032, 2, 28), new BigDecimal("1000000.00")));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+
+		mvc.perform(put("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.content("{\"name\":\"Larkspur Total Return Fund\",\"lei\":\"549300LARKSPUR0001\"}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk());
+
+		assertAmount("100.00", decimalField(mvc.perform(get("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk()).andReturn(), "creditLimit"));
+		assertAmount("50.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenCreditLimitIsLowered_thenAvailableCreditCannotExceedIt() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Merrow Street Credit", "549300MERROWSTREET1",
+						new BigDecimal("100.00")),
+				new Bond("US912828ST90", "US Treasury", new BigDecimal("3.0000"),
+						LocalDate.of(2036, 11, 30), new BigDecimal("1000000.00")));
+
+		mvc.perform(put("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.content("{\"name\":\"Merrow Street Credit\",\"lei\":\"549300MERROWSTREET1\","
+						+ "\"creditLimit\":50.00}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk());
+
+		assertAmount("50.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("80.00"))
+				.andExpect(status().isBadRequest())
+				.andExpect(status().reason(containsString("Insufficient credit")));
+	}
+
+	@Test
+	public void whenCreditLimitIsLowered_thenCreditAlreadyConsumedIsPreserved() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Thornbury Bond Fund", "549300THORNBURY001",
+						new BigDecimal("100.00")),
+				new Bond("US912828UV34", "US Treasury", new BigDecimal("3.7500"),
+						LocalDate.of(2037, 8, 31), new BigDecimal("1000000.00")));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+
+		mvc.perform(put("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.content("{\"name\":\"Thornbury Bond Fund\",\"lei\":\"549300THORNBURY001\","
+						+ "\"creditLimit\":60.00}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk());
+
+		assertAmount("10.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("50.00"))
+				.andExpect(status().isBadRequest())
+				.andExpect(status().reason(containsString("Insufficient credit")));
+	}
+
+	private enum Entity {
+		COUNTERPARTY, BOND
+	}
+
+	private Map<Entity, Long> createCounterpartyAndBond(final Counterparty cp, final Bond bond) throws Exception {
+		final MvcResult resultCp = mvc.perform(post("/counterparties").content(asJsonString(cp))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+		final MvcResult resultBond = mvc.perform(post("/bonds").content(asJsonString(bond))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		final Map<Entity, Long> ids = new EnumMap<>(Entity.class);
+		ids.put(Entity.COUNTERPARTY, extractId(resultCp));
+		ids.put(Entity.BOND, extractId(resultBond));
+		return ids;
+	}
+
+	private ResultActions executeRfq(final Map<Entity, Long> ids, final BigDecimal notionalAmount,
+			final Side side, final BigDecimal executionPrice) throws Exception {
+		final RfqDto rfq = new RfqDto();
+		rfq.setCounterpartyId(ids.get(Entity.COUNTERPARTY));
+		rfq.setBondId(ids.get(Entity.BOND));
+		rfq.setNotionalAmount(notionalAmount);
+		rfq.setSide(side);
+		rfq.setExecutionPrice(executionPrice);
+		return mvc.perform(post("/rfqs").content(asJsonString(rfq))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON));
+	}
+
+	private BigDecimal availableCredit(final long counterpartyId) throws Exception {
+		return decimalField(mvc.perform(get("/counterparties/" + counterpartyId)
+				.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk()).andReturn(),
+				"availableCredit");
+	}
+
+	private BigDecimal availableNotional(final long bondId) throws Exception {
+		return decimalField(mvc.perform(get("/bonds/" + bondId)
+				.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk()).andReturn(),
+				"availableNotional");
+	}
+
+	private static BigDecimal decimalField(final MvcResult result, final String field) throws Exception {
+		final JsonNode node = MAPPER.readTree(result.getResponse().getContentAsString());
+		return node.get(field).decimalValue();
+	}
+
+	private static void assertAmount(final String expected, final BigDecimal actual) {
+		assertEquals(0, new BigDecimal(expected).compareTo(actual),
+				() -> "expected " + expected + " but was " + actual);
 	}
 
 	@Test
