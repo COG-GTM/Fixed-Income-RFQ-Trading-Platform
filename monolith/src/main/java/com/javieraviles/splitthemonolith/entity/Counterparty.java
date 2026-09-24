@@ -8,7 +8,6 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.PrePersist;
-import javax.persistence.PreUpdate;
 import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
@@ -40,7 +39,6 @@ public class Counterparty {
 	}
 
 	@PrePersist
-	@PreUpdate
 	private void initCreditBalances() {
 		if (this.availableCredit == null && this.creditLimit != null) {
 			this.availableCredit = this.creditLimit;
@@ -110,15 +108,26 @@ public class Counterparty {
 		return creditLimit;
 	}
 
+	/**
+	 * An omitted limit keeps the currently approved one: credit lines are
+	 * changed by supplying a new figure, never by clearing the field.
+	 */
 	public void setCreditLimit(final BigDecimal creditLimit) {
-		this.creditLimit = creditLimit;
+		if (creditLimit != null) {
+			this.creditLimit = creditLimit;
+		}
 	}
 
 	public BigDecimal getAvailableCredit() {
 		return availableCredit;
 	}
 
+	/**
+	 * An omitted balance keeps the credit already consumed by open trades.
+	 */
 	public void setAvailableCredit(final BigDecimal availableCredit) {
-		this.availableCredit = availableCredit;
+		if (availableCredit != null) {
+			this.availableCredit = availableCredit;
+		}
 	}
 }

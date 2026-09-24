@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -253,6 +254,27 @@ public class IntegrationTest {
 		executeRfq(ids, new BigDecimal("500000.00"), Side.SELL, new BigDecimal("50.00"))
 				.andExpect(status().isCreated());
 		assertAmount("100.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
+	}
+
+	@Test
+	public void whenUpdateCounterparty_withoutBalances_thenConsumedCreditIsPreserved() throws Exception {
+		final Map<Entity, Long> ids = createCounterpartyAndBond(
+				new Counterparty("Larkspur Total Return", "549300LARKSPUR0001",
+						new BigDecimal("100.00")),
+				new Bond("US912828QR78", "US Treasury", new BigDecimal("2.5000"),
+						LocalDate.of(2032, 2, 28), new BigDecimal("1000000.00")));
+
+		executeRfq(ids, new BigDecimal("500000.00"), Side.BUY, new BigDecimal("50.00"))
+				.andExpect(status().isCreated());
+
+		mvc.perform(put("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.content("{\"name\":\"Larkspur Total Return Fund\",\"lei\":\"549300LARKSPUR0001\"}")
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk());
+
+		assertAmount("100.00", decimalField(mvc.perform(get("/counterparties/" + ids.get(Entity.COUNTERPARTY))
+				.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk()).andReturn(), "creditLimit"));
+		assertAmount("50.00", availableCredit(ids.get(Entity.COUNTERPARTY)));
 	}
 
 	private enum Entity {
