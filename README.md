@@ -37,7 +37,7 @@ Three domain entities:
    - executionPrice (BigDecimal — total settlement amount)
    - createdAt (Instant)
 
-Counterparty and Bond must be in place before executing an RFQ. If the bond has insufficient available notional or the counterparty has insufficient available credit, an exception will be thrown. The core logic is in `RFQExecutionSaga.java`, which attempts to execute an RFQ in a single transaction.
+Counterparty and Bond must be in place before executing an RFQ. Side is expressed from the counterparty's perspective: a BUY consumes available notional from inventory and consumes the counterparty's available credit, while a SELL returns notional to inventory and releases credit back up to (but never above) the approved credit limit. Notional and settlement amounts must be positive and are normalised to two decimal places before inventory and credit move. If the bond has insufficient available notional or the counterparty has insufficient available credit, an exception will be thrown. The core logic is in `RFQExecutionSaga.java`, which attempts to execute an RFQ in a single transaction.
 
 A PATCH method endpoint exists for both `Counterparty` and `Bond` controllers to update credit / notional inventory.
 
