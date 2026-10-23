@@ -87,4 +87,17 @@ cd monolith
 ./mvnw clean test
 ```
 
-See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
+Run the full build with the JaCoCo coverage gate (this is what CI runs on every PR):
+
+```bash
+cd monolith
+./mvnw verify
+```
+
+The HTML report is written to `monolith/target/site/jacoco/index.html`. The gate fails the build if bundle line coverage drops below 64%, branch coverage below 50%, or the `saga` package below 100% line coverage. The thresholds live in `monolith/pom.xml` (`jacoco.line.minimum`, `jacoco.branch.minimum`).
+
+Test suites:
+
+- `IntegrationTest`: REST happy path and error cases for counterparties, bonds and RFQs.
+- `saga/RFQExecutionSagaTest`: unit tests for the RFQ execution saga with mocked repositories (BUY and SELL, exact-limit trades, insufficient credit, insufficient notional, unknown counterparty or bond).
+- `saga/RFQExecutionSagaIntegrationTest`: runs the saga against H2 and the real transaction manager. It checks that rejected quotes persist no RFQ and roll back any partial notional deduction.
