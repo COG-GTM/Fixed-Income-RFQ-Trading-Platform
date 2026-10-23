@@ -143,9 +143,13 @@ public class IntegrationTest {
 
 	@Test
 	public void whenExecuteRfq_withNonExistentCounterparty_thenReturnNotFound() throws Exception {
+		final MvcResult bonds = mvc.perform(get("/bonds")).andExpect(status().isOk()).andReturn();
+		final long existingBondId = MAPPER.readTree(bonds.getResponse().getContentAsString()).get(0).get("id")
+				.asLong();
+
 		final RfqDto rfq = new RfqDto();
 		rfq.setCounterpartyId(9999L);
-		rfq.setBondId(1L);
+		rfq.setBondId(existingBondId);
 		rfq.setNotionalAmount(new BigDecimal("1000000.00"));
 		rfq.setSide(Side.BUY);
 		rfq.setExecutionPrice(new BigDecimal("998750.00"));
