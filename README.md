@@ -84,7 +84,13 @@ The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rf
 
 ```bash
 cd monolith
-./mvnw clean test
+./mvnw clean verify
 ```
 
-See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
+`verify` runs the tests and enforces the JaCoCo coverage gate (bundle line >= 60%, branch >= 35%, and 100% of `RFQExecutionSaga`). The HTML report is written to `monolith/target/site/jacoco/index.html`.
+
+- `IntegrationTest.java`: REST use-cases for counterparties, bonds, and RFQ execution.
+- `saga/RFQExecutionSagaTest.java`: Mockito unit tests for the saga (BUY/SELL, limit boundaries, insufficient notional/credit, unknown counterparty/bond).
+- `saga/RFQExecutionSagaIntegrationTest.java`: saga against JPA/H2 and over HTTP, verifying rejected quotes write no RFQ and roll back any partial notional/credit deduction.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `./mvnw -B verify` on every pull request and on pushes to `master`.
