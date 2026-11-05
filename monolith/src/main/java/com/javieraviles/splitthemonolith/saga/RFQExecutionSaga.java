@@ -29,17 +29,19 @@ public class RFQExecutionSaga {
 	@Transactional
 	public Rfq executeRfq(final RfqDto rfqDto) {
 
-		final Bond bond = bondRepository.findById(rfqDto.getBondId())
+		final Bond bond = bondRepository.findByIdForUpdate(rfqDto.getBondId())
 				.orElseThrow(() -> new ResourceNotFoundException());
-		final Counterparty counterparty = counterpartyRepository.findById(rfqDto.getCounterpartyId())
+		final Counterparty counterparty = counterpartyRepository.findByIdForUpdate(rfqDto.getCounterpartyId())
 				.orElseThrow(() -> new ResourceNotFoundException());
 
-		bond.deductNotional(rfqDto.getNotionalAmount());
 		/*
+		 * Bond and counterparty rows are locked (always in this order) until commit,
+		 * so concurrent RFQs check and deduct against the latest committed balances.
 		 * This is all part of one transaction due to @Transactional annotation.
 		 * No need for saga compensation as credit will only be deducted if the
 		 * bond had sufficient available notional.
 		 */
+		bond.deductNotional(rfqDto.getNotionalAmount());
 		counterparty.deductCredit(rfqDto.getExecutionPrice());
 
 		return rfqRepository.save(new Rfq(counterparty, bond, rfqDto.getNotionalAmount(),
