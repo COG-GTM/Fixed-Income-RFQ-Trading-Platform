@@ -3,6 +3,7 @@ package com.javieraviles.splitthemonolith.dto;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import javax.validation.constraints.Digits;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Positive;
 
@@ -19,7 +20,9 @@ public class RfqDto {
 	@NotNull
 	private long bondId;
 
+	@NotNull
 	@Positive
+	@Digits(integer = 17, fraction = 2)
 	private BigDecimal notionalAmount;
 
 	@NotNull
@@ -27,7 +30,9 @@ public class RfqDto {
 
 	private RfqStatus status;
 
+	@NotNull
 	@Positive
+	@Digits(integer = 17, fraction = 2)
 	private BigDecimal executionPrice;
 
 	private Instant createdAt;

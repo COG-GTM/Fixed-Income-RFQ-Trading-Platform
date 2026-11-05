@@ -2,7 +2,8 @@ package com.javieraviles.splitthemonolith.controller;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
+
+import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.javieraviles.splitthemonolith.dto.AmountUpdateDto;
 import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
@@ -48,7 +50,7 @@ class CounterpartyController {
 	}
 
 	@PostMapping("/counterparties")
-	ResponseEntity<Counterparty> createCounterparty(@RequestBody Counterparty newCounterparty) {
+	ResponseEntity<Counterparty> createCounterparty(@Valid @RequestBody Counterparty newCounterparty) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(newCounterparty));
 	}
 
@@ -59,7 +61,7 @@ class CounterpartyController {
 	}
 
 	@PutMapping("/counterparties/{id}")
-	ResponseEntity<Counterparty> updateCounterparty(@RequestBody Counterparty updatedCounterparty, @PathVariable Long id) {
+	ResponseEntity<Counterparty> updateCounterparty(@Valid @RequestBody Counterparty updatedCounterparty, @PathVariable Long id) {
 		final Counterparty counterparty = repository.findById(id).map(c -> {
 			c.setName(updatedCounterparty.getName());
 			c.setLei(updatedCounterparty.getLei());
@@ -71,27 +73,22 @@ class CounterpartyController {
 	}
 
 	@RequestMapping(value = "/counterparties/{id}", method = RequestMethod.PATCH, consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> partialUpdateGeneric(@RequestBody Map<String, String> creditUpdate,
+	public ResponseEntity<Counterparty> partialUpdateGeneric(@Valid @RequestBody AmountUpdateDto creditUpdate,
 			@PathVariable("id") Long id) {
-		try {
-			final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
-			final BigDecimal creditAmount = new BigDecimal(creditUpdate.get("amount"));
-			final OperationEnum operation = OperationEnum.valueOf(creditUpdate.get("operation"));
-			if (operation == OperationEnum.ADD) {
-				counterparty.addCredit(creditAmount);
-				final TradeConfirmationDto confirmation = new TradeConfirmationDto(counterparty.getName(), creditAmount);
-				if (useConfirmationService) {
-					confirmationMsClient.sendConfirmation(confirmation);
-				} else {
-					tradeConfirmationService.sendTradeConfirmation(confirmation);
-				}
+		final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
+		final BigDecimal creditAmount = creditUpdate.getAmount();
+		if (creditUpdate.getOperation() == OperationEnum.ADD) {
+			counterparty.addCredit(creditAmount);
+			final TradeConfirmationDto confirmation = new TradeConfirmationDto(counterparty.getName(), creditAmount);
+			if (useConfirmationService) {
+				confirmationMsClient.sendConfirmation(confirmation);
 			} else {
-				counterparty.deductCredit(creditAmount);
+				tradeConfirmationService.sendTradeConfirmation(confirmation);
 			}
-			return ResponseEntity.ok(repository.save(counterparty));
-		} catch (final IllegalArgumentException e) {
-			return ResponseEntity.badRequest().body("wrong operation");
+		} else {
+			counterparty.deductCredit(creditAmount);
 		}
+		return ResponseEntity.ok(repository.save(counterparty));
 	}
 
 	@DeleteMapping("/counterparties/{id}")
