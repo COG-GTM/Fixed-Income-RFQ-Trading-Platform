@@ -142,6 +142,19 @@ public class IntegrationTest {
 	}
 
 	@Test
+	public void whenExecuteRfq_withNegativeAmounts_thenReturnBadRequest() throws Exception {
+		final RfqDto rfq = new RfqDto();
+		rfq.setCounterpartyId(1L);
+		rfq.setBondId(1L);
+		rfq.setNotionalAmount(new BigDecimal("-1000000.00"));
+		rfq.setSide(Side.SELL);
+		rfq.setExecutionPrice(new BigDecimal("-998750.00"));
+
+		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest());
+	}
+
+	@Test
 	public void whenExecuteRfq_withNonExistentCounterparty_thenReturnNotFound() throws Exception {
 		final RfqDto rfq = new RfqDto();
 		rfq.setCounterpartyId(9999L);

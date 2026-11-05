@@ -8,9 +8,11 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.Version;
 import javax.validation.constraints.PositiveOrZero;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientNotionalException;
+import com.javieraviles.splitthemonolith.exception.InvalidAmountException;
 
 @Entity(name = "bonds")
 public class Bond {
@@ -33,6 +35,9 @@ public class Bond {
 	@Column(precision = 19, scale = 2)
 	private BigDecimal availableNotional;
 
+	@Version
+	private Long version;
+
 	public Bond() {
 	}
 
@@ -46,14 +51,22 @@ public class Bond {
 	}
 
 	public void addNotional(final BigDecimal amount) {
+		requirePositive(amount);
 		this.availableNotional = this.availableNotional.add(amount);
 	}
 
 	public void deductNotional(final BigDecimal amount) {
+		requirePositive(amount);
 		if (amount.compareTo(this.availableNotional) > 0) {
 			throw new InsufficientNotionalException();
 		}
 		this.availableNotional = this.availableNotional.subtract(amount);
+	}
+
+	private static void requirePositive(final BigDecimal amount) {
+		if (amount == null || amount.signum() <= 0) {
+			throw new InvalidAmountException();
+		}
 	}
 
 	public long getId() {

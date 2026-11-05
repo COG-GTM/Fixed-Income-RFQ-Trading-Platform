@@ -8,10 +8,12 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.PrePersist;
+import javax.persistence.Version;
 import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientCreditException;
+import com.javieraviles.splitthemonolith.exception.InvalidAmountException;
 
 @Entity(name = "counterparties")
 public class Counterparty {
@@ -34,6 +36,9 @@ public class Counterparty {
 	@Column(precision = 19, scale = 2)
 	private BigDecimal availableCredit;
 
+	@Version
+	private Long version;
+
 	public Counterparty() {
 	}
 
@@ -52,14 +57,22 @@ public class Counterparty {
 	}
 
 	public void addCredit(final BigDecimal amount) {
+		requirePositive(amount);
 		this.availableCredit = this.availableCredit.add(amount);
 	}
 
 	public void deductCredit(final BigDecimal amount) {
+		requirePositive(amount);
 		if (amount.compareTo(this.availableCredit) > 0) {
 			throw new InsufficientCreditException();
 		}
 		this.availableCredit = this.availableCredit.subtract(amount);
+	}
+
+	private static void requirePositive(final BigDecimal amount) {
+		if (amount == null || amount.signum() <= 0) {
+			throw new InvalidAmountException();
+		}
 	}
 
 	public long getId() {
