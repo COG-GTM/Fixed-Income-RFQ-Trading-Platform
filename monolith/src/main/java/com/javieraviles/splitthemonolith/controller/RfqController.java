@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +19,8 @@ import com.javieraviles.splitthemonolith.entity.Rfq;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.RfqRepository;
 import com.javieraviles.splitthemonolith.saga.RFQExecutionSaga;
+import com.javieraviles.splitthemonolith.security.CurrentUser;
+import com.javieraviles.splitthemonolith.security.RfqUserDetails;
 
 @RestController
 class RfqController {
@@ -30,18 +33,32 @@ class RfqController {
 
 	@GetMapping("/rfqs")
 	List<RfqDto> getAll() {
-		final List<Rfq> rfqs = repository.findAll();
+		final RfqUserDetails user = CurrentUser.get();
+		final List<Rfq> rfqs = user.isOperator() ? repository.findAll()
+				: repository.findByCounterpartyId(user.getCounterpartyId());
 		return rfqs.stream().map(this::toDto).collect(Collectors.toList());
 	}
 
 	@PostMapping("/rfqs")
 	ResponseEntity<RfqDto> createRfq(@RequestBody RfqDto newRfq) {
+		final RfqUserDetails user = CurrentUser.get();
+		if (!user.isOperator()) {
+			// Counterparty users always trade as themselves.
+			if (newRfq.getCounterpartyId() != 0 && newRfq.getCounterpartyId() != user.getCounterpartyId()) {
+				throw new AccessDeniedException("Cannot execute RFQs for another counterparty");
+			}
+			newRfq.setCounterpartyId(user.getCounterpartyId());
+		}
 		return ResponseEntity.status(HttpStatus.CREATED).body(toDto(rfqExecutionSaga.executeRfq(newRfq)));
 	}
 
 	@GetMapping("/rfqs/{id}")
 	ResponseEntity<RfqDto> getOne(@PathVariable Long id) {
 		final Rfq rfq = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
+		final RfqUserDetails user = CurrentUser.get();
+		if (!user.isOperator() && rfq.getCounterparty().getId() != user.getCounterpartyId()) {
+			throw new ResourceNotFoundException();
+		}
 		return ResponseEntity.ok(toDto(rfq));
 	}
 

@@ -25,6 +25,7 @@ import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
+import com.javieraviles.splitthemonolith.security.CurrentUser;
 import com.javieraviles.splitthemonolith.service.TradeConfirmationService;
 
 @RestController
@@ -54,6 +55,7 @@ class CounterpartyController {
 
 	@GetMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> getOne(@PathVariable Long id) {
+		CurrentUser.requireAccessToCounterparty(id);
 		final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
 		return ResponseEntity.ok(counterparty);
 	}
