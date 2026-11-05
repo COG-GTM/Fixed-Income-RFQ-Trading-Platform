@@ -25,6 +25,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		return new ConfiguredUserDetailsService(properties);
 	}
 
+	private static final String[] SHARED_READ_PATHS = { "/bonds", "/bonds/{id}", "/counterparties/{id}", "/rfqs",
+			"/rfqs/{id}" };
+
 	@Bean
 	PasswordEncoder passwordEncoder() {
 		return PasswordEncoderFactories.createDelegatingPasswordEncoder();
@@ -37,10 +40,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 				.and()
 				.authorizeRequests()
 				.mvcMatchers("/error").permitAll()
-				.mvcMatchers(HttpMethod.GET, "/bonds", "/bonds/{id}").hasAnyRole(OPERATOR, COUNTERPARTY)
-				// Ownership of the counterparty / RFQ is enforced in the controllers.
-				.mvcMatchers(HttpMethod.GET, "/counterparties/{id}").hasAnyRole(OPERATOR, COUNTERPARTY)
-				.mvcMatchers(HttpMethod.GET, "/rfqs", "/rfqs/{id}").hasAnyRole(OPERATOR, COUNTERPARTY)
+				// Ownership of the counterparty / RFQ is enforced in the controllers (HEAD reuses the GET handlers).
+				.mvcMatchers(HttpMethod.GET, SHARED_READ_PATHS).hasAnyRole(OPERATOR, COUNTERPARTY)
+				.mvcMatchers(HttpMethod.HEAD, SHARED_READ_PATHS).hasAnyRole(OPERATOR, COUNTERPARTY)
 				.mvcMatchers(HttpMethod.POST, "/rfqs").hasAnyRole(OPERATOR, COUNTERPARTY)
 				.anyRequest().hasRole(OPERATOR)
 				.and()

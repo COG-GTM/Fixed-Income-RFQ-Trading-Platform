@@ -68,6 +68,8 @@ A trade confirmation is sent to a counterparty whenever credit is added, handled
 ## Authentication and Authorization
 
 Every endpoint requires HTTP Basic authentication (Spring Security); unauthenticated requests get `401`.
+HTTP Basic sends reusable credentials with every request, so outside local development the API must only be
+exposed over HTTPS (TLS terminated at a reverse proxy/ingress, or `server.ssl.*` in Spring Boot).
 Two roles exist:
 
 - **OPERATOR** (platform staff): full access to every endpoint, including creating/updating/deleting counterparties

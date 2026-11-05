@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -221,6 +222,17 @@ public class IntegrationTest {
 		mvc.perform(get("/counterparties/" + otherId).with(ACME)).andExpect(status().isForbidden());
 		mvc.perform(get("/counterparties/" + ACME_ID).with(ACME)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.name", is("Acme Asset Management")));
+	}
+
+	@Test
+	public void whenCounterpartyUserSendsHead_thenSameAccessAsGet() throws Exception {
+		final long otherId = createCounterparty("Other Fund", "549300OTHERFUND0002", "1000000.00");
+		mvc.perform(head("/bonds").with(ACME)).andExpect(status().isOk());
+		mvc.perform(head("/rfqs").with(ACME)).andExpect(status().isOk());
+		mvc.perform(head("/counterparties/" + ACME_ID).with(ACME)).andExpect(status().isOk());
+		mvc.perform(head("/counterparties/" + otherId).with(ACME)).andExpect(status().isForbidden());
+		mvc.perform(head("/counterparties").with(ACME)).andExpect(status().isForbidden());
+		mvc.perform(head("/bonds")).andExpect(status().isUnauthorized());
 	}
 
 	@Test
