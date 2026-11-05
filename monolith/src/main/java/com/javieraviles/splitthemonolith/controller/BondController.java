@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.entity.Bond;
+import com.javieraviles.splitthemonolith.exception.NonPositiveAmountException;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.BondRepository;
 
@@ -71,7 +72,9 @@ class BondController {
 				bond.deductNotional(notionalQuantity);
 			}
 			return ResponseEntity.ok(repository.save(bond));
-		} catch (final IllegalArgumentException e) {
+		} catch (final NonPositiveAmountException e) {
+			return ResponseEntity.badRequest().body("amount must be positive");
+		} catch (final IllegalArgumentException | NullPointerException e) {
 			return ResponseEntity.badRequest().body("wrong operation");
 		}
 	}

@@ -12,6 +12,7 @@ import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientCreditException;
+import com.javieraviles.splitthemonolith.exception.NonPositiveAmountException;
 
 @Entity(name = "counterparties")
 public class Counterparty {
@@ -52,10 +53,12 @@ public class Counterparty {
 	}
 
 	public void addCredit(final BigDecimal amount) {
+		NonPositiveAmountException.requirePositive(amount);
 		this.availableCredit = this.availableCredit.add(amount);
 	}
 
 	public void deductCredit(final BigDecimal amount) {
+		NonPositiveAmountException.requirePositive(amount);
 		if (amount.compareTo(this.availableCredit) > 0) {
 			throw new InsufficientCreditException();
 		}
