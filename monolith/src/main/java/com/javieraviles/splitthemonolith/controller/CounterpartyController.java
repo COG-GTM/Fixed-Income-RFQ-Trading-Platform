@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
+import com.javieraviles.splitthemonolith.exception.NonPositiveAmountException;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
@@ -89,7 +90,9 @@ class CounterpartyController {
 				counterparty.deductCredit(creditAmount);
 			}
 			return ResponseEntity.ok(repository.save(counterparty));
-		} catch (final IllegalArgumentException e) {
+		} catch (final NonPositiveAmountException e) {
+			return ResponseEntity.badRequest().body("amount must be positive");
+		} catch (final IllegalArgumentException | NullPointerException e) {
 			return ResponseEntity.badRequest().body("wrong operation");
 		}
 	}

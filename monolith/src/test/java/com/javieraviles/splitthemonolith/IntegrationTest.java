@@ -3,6 +3,7 @@ package com.javieraviles.splitthemonolith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -165,6 +166,79 @@ public class IntegrationTest {
 
 		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isNotFound());
+	}
+
+	@Test
+	public void whenPatchBondWithNonPositiveAmount_thenBadRequestAndNotionalUnchanged() throws Exception {
+		final Bond bond = new Bond("US912828NE01", "US Treasury",
+				new BigDecimal("2.7500"), LocalDate.of(2034, 2, 15),
+				new BigDecimal("10000000.00"));
+		final long bondId = extractId(mvc.perform(post("/bonds").content(asJsonString(bond))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn());
+
+		for (final String operation : new String[] { "DEDUCT", "ADD" }) {
+			for (final String amount : new String[] { "-50000000", "0" }) {
+				mvc.perform(patch("/bonds/" + bondId)
+						.content("{\"amount\":\"" + amount + "\",\"operation\":\"" + operation + "\"}")
+						.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest());
+			}
+		}
+
+		mvc.perform(get("/bonds/" + bondId)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.availableNotional", is(10000000.00)));
+	}
+
+	@Test
+	public void whenPatchBondWithPositiveDeduct_thenNotionalDecreases() throws Exception {
+		final Bond bond = new Bond("US912828NE02", "US Treasury",
+				new BigDecimal("2.7500"), LocalDate.of(2034, 2, 15),
+				new BigDecimal("10000000.00"));
+		final long bondId = extractId(mvc.perform(post("/bonds").content(asJsonString(bond))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn());
+
+		mvc.perform(patch("/bonds/" + bondId).content("{\"amount\":\"4000000\",\"operation\":\"DEDUCT\"}")
+				.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.availableNotional", is(6000000.00)));
+	}
+
+	@Test
+	public void whenPatchCounterpartyWithNegativeAmount_thenBadRequestAndCreditUnchanged() throws Exception {
+		final Counterparty cp = new Counterparty("Negative Credit Probe",
+				"549300NEGPROBE00001", new BigDecimal("1000000.00"));
+		final long cpId = extractId(mvc.perform(post("/counterparties").content(asJsonString(cp))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn());
+
+		mvc.perform(patch("/counterparties/" + cpId).content("{\"amount\":\"-500\",\"operation\":\"DEDUCT\"}")
+				.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest());
+
+		mvc.perform(get("/counterparties/" + cpId)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.availableCredit", is(1000000.00)));
+	}
+
+	@Test
+	public void whenExecuteRfq_withNegativeNotional_thenBadRequestAndNotionalUnchanged() throws Exception {
+		final Bond bond = new Bond("US912828NE03", "US Treasury",
+				new BigDecimal("2.7500"), LocalDate.of(2034, 2, 15),
+				new BigDecimal("10000000.00"));
+		final long bondId = extractId(mvc.perform(post("/bonds").content(asJsonString(bond))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn());
+
+		final RfqDto rfq = new RfqDto();
+		rfq.setCounterpartyId(1L);
+		rfq.setBondId(bondId);
+		rfq.setNotionalAmount(new BigDecimal("-50000000.00"));
+		rfq.setSide(Side.BUY);
+		rfq.setExecutionPrice(new BigDecimal("1000.00"));
+
+		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest());
+
+		mvc.perform(get("/bonds/" + bondId)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.availableNotional", is(10000000.00)));
 	}
 
 	private static long extractId(final MvcResult result) throws Exception {
