@@ -103,6 +103,9 @@ public class SecurityIntegrationTest {
 		mvc.perform(put("/counterparties/" + other.getId()).with(OPERATOR).contentType(MediaType.APPLICATION_JSON)
 				.content(json(new Counterparty("Lei Fund Renamed", "549300LEIFUND0000001", new BigDecimal("1000.00")))))
 				.andExpect(status().isOk());
+		mvc.perform(put("/counterparties/999999").with(OPERATOR).contentType(MediaType.APPLICATION_JSON)
+				.content(json(new Counterparty("Ghost", ACME_LEI, new BigDecimal("1")))))
+				.andExpect(status().isNotFound());
 		mvc.perform(get("/counterparties").with(ACME_TRADER)).andExpect(status().isOk())
 				.andExpect(jsonPath("$", hasSize(1))).andExpect(jsonPath("$[0].lei", is(ACME_LEI)));
 	}

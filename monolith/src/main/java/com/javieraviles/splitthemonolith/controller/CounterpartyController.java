@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -59,7 +60,7 @@ class CounterpartyController {
 	@PostMapping("/counterparties")
 	ResponseEntity<Counterparty> createCounterparty(@RequestBody Counterparty newCounterparty) {
 		checkLeiAvailable(newCounterparty.getLei(), null);
-		return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(newCounterparty));
+		return ResponseEntity.status(HttpStatus.CREATED).body(saveWithUniqueLei(newCounterparty, null));
 	}
 
 	@GetMapping("/counterparties/{id}")
@@ -71,15 +72,13 @@ class CounterpartyController {
 
 	@PutMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> updateCounterparty(@RequestBody Counterparty updatedCounterparty, @PathVariable Long id) {
+		final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
 		checkLeiAvailable(updatedCounterparty.getLei(), id);
-		final Counterparty counterparty = repository.findById(id).map(c -> {
-			c.setName(updatedCounterparty.getName());
-			c.setLei(updatedCounterparty.getLei());
-			c.setCreditLimit(updatedCounterparty.getCreditLimit());
-			c.setAvailableCredit(updatedCounterparty.getAvailableCredit());
-			return repository.save(c);
-		}).orElseThrow(() -> new ResourceNotFoundException());
-		return ResponseEntity.ok(counterparty);
+		counterparty.setName(updatedCounterparty.getName());
+		counterparty.setLei(updatedCounterparty.getLei());
+		counterparty.setCreditLimit(updatedCounterparty.getCreditLimit());
+		counterparty.setAvailableCredit(updatedCounterparty.getAvailableCredit());
+		return ResponseEntity.ok(saveWithUniqueLei(counterparty, id));
 	}
 
 	@RequestMapping(value = "/counterparties/{id}", method = RequestMethod.PATCH, consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -110,9 +109,20 @@ class CounterpartyController {
 	void deleteCounterparty(@PathVariable Long id) {
 		repository.deleteById(id);
 	}
+
 	private void checkLeiAvailable(final String lei, final Long ownId) {
 		if (lei != null && repository.findByLei(lei).stream().anyMatch(c -> ownId == null || c.getId() != ownId)) {
 			throw new DuplicateLeiException();
+		}
+	}
+
+	/** Maps a lost race on the LEI unique constraint to 409; other integrity failures propagate. */
+	private Counterparty saveWithUniqueLei(final Counterparty counterparty, final Long ownId) {
+		try {
+			return repository.save(counterparty);
+		} catch (final DataIntegrityViolationException e) {
+			checkLeiAvailable(counterparty.getLei(), ownId);
+			throw e;
 		}
 	}
 }
