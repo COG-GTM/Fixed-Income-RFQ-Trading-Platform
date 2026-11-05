@@ -3,7 +3,9 @@ package com.javieraviles.splitthemonolith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -165,6 +167,64 @@ public class IntegrationTest {
 
 		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isNotFound());
+	}
+
+	@Test
+	public void whenPatchCounterpartyWithNegativeAmount_thenReturnBadRequestAndBalanceUnchanged() throws Exception {
+		final long cpId = createCounterparty(new Counterparty("Negative Amount Fund",
+				"549300NEGATIVE00001", new BigDecimal("1000000.00")));
+
+		for (final String operation : new String[] { "DEDUCT", "ADD" }) {
+			for (final String amount : new String[] { "-10000000", "0" }) {
+				mvc.perform(patch("/counterparties/" + cpId)
+						.content("{\"amount\":\"" + amount + "\",\"operation\":\"" + operation + "\"}")
+						.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest())
+						.andExpect(content().string("amount must be positive"));
+			}
+		}
+
+		mvc.perform(get("/counterparties/" + cpId).contentType(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.availableCredit", is(1000000.00)));
+	}
+
+	@Test
+	public void whenPatchCounterpartyWithPositiveDeduct_thenCreditReduced() throws Exception {
+		final long cpId = createCounterparty(new Counterparty("Positive Deduct Fund",
+				"549300POSITIVE00001", new BigDecimal("1000000.00")));
+
+		mvc.perform(patch("/counterparties/" + cpId).content("{\"amount\":\"250000\",\"operation\":\"DEDUCT\"}")
+				.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.availableCredit", is(750000.00)));
+	}
+
+	@Test
+	public void whenExecuteRfq_withNegativeExecutionPrice_thenReturnBadRequestAndCreditUnchanged() throws Exception {
+		final long cpId = createCounterparty(new Counterparty("Negative Price Fund",
+				"549300NEGPRICE00001", new BigDecimal("1000000.00")));
+		final MvcResult resultBond = mvc.perform(post("/bonds").content(asJsonString(new Bond("US912828NP01",
+				"US Treasury", new BigDecimal("2.0000"), LocalDate.of(2034, 1, 15), new BigDecimal("5000000.00"))))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		final RfqDto rfq = new RfqDto();
+		rfq.setCounterpartyId(cpId);
+		rfq.setBondId(extractId(resultBond));
+		rfq.setNotionalAmount(new BigDecimal("1000.00"));
+		rfq.setSide(Side.BUY);
+		rfq.setExecutionPrice(new BigDecimal("-10000000.00"));
+
+		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest());
+
+		mvc.perform(get("/counterparties/" + cpId).contentType(MediaType.APPLICATION_JSON))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.availableCredit", is(1000000.00)));
+	}
+
+	private long createCounterparty(final Counterparty cp) throws Exception {
+		final MvcResult result = mvc.perform(post("/counterparties").content(asJsonString(cp))
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+		return extractId(result);
 	}
 
 	private static long extractId(final MvcResult result) throws Exception {
