@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
+import com.javieraviles.splitthemonolith.exception.InvalidAmountException;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
@@ -75,7 +76,14 @@ class CounterpartyController {
 			@PathVariable("id") Long id) {
 		try {
 			final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
-			final BigDecimal creditAmount = new BigDecimal(creditUpdate.get("amount"));
+			final String rawAmount = creditUpdate.get("amount");
+			if (rawAmount == null) {
+				throw new InvalidAmountException();
+			}
+			final BigDecimal creditAmount = new BigDecimal(rawAmount);
+			if (creditAmount.signum() <= 0) {
+				throw new InvalidAmountException();
+			}
 			final OperationEnum operation = OperationEnum.valueOf(creditUpdate.get("operation"));
 			if (operation == OperationEnum.ADD) {
 				counterparty.addCredit(creditAmount);
@@ -89,6 +97,8 @@ class CounterpartyController {
 				counterparty.deductCredit(creditAmount);
 			}
 			return ResponseEntity.ok(repository.save(counterparty));
+		} catch (final InvalidAmountException e) {
+			return ResponseEntity.badRequest().body("amount must be positive");
 		} catch (final IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body("wrong operation");
 		}
