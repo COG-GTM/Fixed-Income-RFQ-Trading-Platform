@@ -10,6 +10,7 @@ Technologies used:
 - [Fixed-Income RFQ Trading Platform](#fixed-income-rfq-trading-platform)
   - [Domain Entities](#domain-entities)
   - [REST Endpoints](#rest-endpoints)
+  - [Authentication and Authorization](#authentication-and-authorization)
   - [Seed Data](#seed-data)
   - [Running the Application](#running-the-application)
   - [Testing](#testing)
@@ -64,6 +65,38 @@ A trade confirmation is sent to a counterparty whenever credit is added, handled
 | GET    | `/rfqs/{id}`           | Get an RFQ by ID                                 |
 | DELETE | `/rfqs/{id}`           | Delete an RFQ                                    |
 
+## Authentication and Authorization
+
+Every endpoint requires HTTP Basic authentication (Spring Security); unauthenticated requests get `401`.
+HTTP Basic sends reusable credentials with every request, so outside local development the API must only be
+exposed over HTTPS (TLS terminated at a reverse proxy/ingress, or `server.ssl.*` in Spring Boot).
+Two roles exist:
+
+- **OPERATOR** (platform staff): full access to every endpoint, including creating/updating/deleting counterparties
+  and bonds, adjusting credit/notional (PUT/PATCH), executing RFQs on behalf of any counterparty and deleting RFQs.
+- **COUNTERPARTY** (a trader bound to one counterparty id): may read bonds, read its own counterparty
+  (`GET /counterparties/{ownId}`), list/read its own RFQs and execute RFQs (`POST /rfqs`). The counterparty is taken
+  from the authenticated user; a body `counterpartyId` that differs from it is rejected with `403`. All other
+  endpoints return `403`.
+
+`POST /rfqs` also rejects (`400`) non-positive notionals and execution prices outside
+`rfq.pricing.min-price-ratio`..`rfq.pricing.max-price-ratio` of the notional (default 0.50..1.50).
+
+No users are committed to the repo. Provision them through configuration, e.g. environment variables
+(passwords use Spring Security's delegating format; prefer `{bcrypt}` hashes):
+
+```bash
+export RFQ_SECURITY_USERS_0_USERNAME=ops
+export RFQ_SECURITY_USERS_0_PASSWORD='{bcrypt}<hash>'
+export RFQ_SECURITY_USERS_0_ROLE=OPERATOR
+export RFQ_SECURITY_USERS_1_USERNAME=acme
+export RFQ_SECURITY_USERS_1_PASSWORD='{bcrypt}<hash>'
+export RFQ_SECURITY_USERS_1_ROLE=COUNTERPARTY
+export RFQ_SECURITY_USERS_1_COUNTERPARTYID=1
+```
+
+If no users are configured the application still starts, but every request is rejected with `401`.
+
 ## Seed Data
 
 On startup the application loads:
@@ -78,7 +111,8 @@ cd monolith
 ./mvnw spring-boot:run
 ```
 
-The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints.
+The application starts on port `8080`. After provisioning users (see above), hit `/counterparties`, `/bonds`, and `/rfqs`
+with credentials, e.g. `curl -u ops:<password> localhost:8080/bonds`.
 
 ## Testing
 
