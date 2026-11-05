@@ -83,6 +83,31 @@ public class SecurityIntegrationTest {
 	}
 
 	@Test
+	public void unsupportedPasswordPrefix_isHashedAsLiteralSecret() throws Exception {
+		mvc.perform(get("/bonds").with(TestAuth.basic("prefixed-operator", "literal-pw")))
+				.andExpect(status().isUnauthorized());
+		mvc.perform(get("/bonds").with(TestAuth.basic("prefixed-operator", "{noop}literal-pw")))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	public void duplicateLei_isRejectedAndTraderKeepsAccess() throws Exception {
+		mvc.perform(post("/counterparties").with(OPERATOR).contentType(MediaType.APPLICATION_JSON)
+				.content(json(new Counterparty("Acme Clone", ACME_LEI, new BigDecimal("1")))))
+				.andExpect(status().isConflict());
+		final Counterparty other = counterpartyRepository
+				.save(new Counterparty("Lei Fund", "549300LEIFUND0000001", new BigDecimal("1000.00")));
+		mvc.perform(put("/counterparties/" + other.getId()).with(OPERATOR).contentType(MediaType.APPLICATION_JSON)
+				.content(json(new Counterparty("Lei Fund", ACME_LEI, new BigDecimal("1000.00")))))
+				.andExpect(status().isConflict());
+		mvc.perform(put("/counterparties/" + other.getId()).with(OPERATOR).contentType(MediaType.APPLICATION_JSON)
+				.content(json(new Counterparty("Lei Fund Renamed", "549300LEIFUND0000001", new BigDecimal("1000.00")))))
+				.andExpect(status().isOk());
+		mvc.perform(get("/counterparties").with(ACME_TRADER)).andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(1))).andExpect(jsonPath("$[0].lei", is(ACME_LEI)));
+	}
+
+	@Test
 	public void trader_cannotChangeCreditOrNotionalOrDelete() throws Exception {
 		final long acmeId = acme().getId();
 		mvc.perform(patch("/counterparties/" + acmeId).with(ACME_TRADER).contentType(MediaType.APPLICATION_JSON)

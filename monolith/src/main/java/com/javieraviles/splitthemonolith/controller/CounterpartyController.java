@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.javieraviles.splitthemonolith.dto.OperationEnum;
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 import com.javieraviles.splitthemonolith.entity.Counterparty;
+import com.javieraviles.splitthemonolith.exception.DuplicateLeiException;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
@@ -57,6 +58,7 @@ class CounterpartyController {
 
 	@PostMapping("/counterparties")
 	ResponseEntity<Counterparty> createCounterparty(@RequestBody Counterparty newCounterparty) {
+		checkLeiAvailable(newCounterparty.getLei(), null);
 		return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(newCounterparty));
 	}
 
@@ -69,6 +71,7 @@ class CounterpartyController {
 
 	@PutMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> updateCounterparty(@RequestBody Counterparty updatedCounterparty, @PathVariable Long id) {
+		checkLeiAvailable(updatedCounterparty.getLei(), id);
 		final Counterparty counterparty = repository.findById(id).map(c -> {
 			c.setName(updatedCounterparty.getName());
 			c.setLei(updatedCounterparty.getLei());
@@ -106,5 +109,10 @@ class CounterpartyController {
 	@DeleteMapping("/counterparties/{id}")
 	void deleteCounterparty(@PathVariable Long id) {
 		repository.deleteById(id);
+	}
+	private void checkLeiAvailable(final String lei, final Long ownId) {
+		if (lei != null && repository.findByLei(lei).stream().anyMatch(c -> ownId == null || c.getId() != ownId)) {
+			throw new DuplicateLeiException();
+		}
 	}
 }

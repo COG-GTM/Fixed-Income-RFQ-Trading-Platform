@@ -72,7 +72,11 @@ Every endpoint requires HTTP Basic credentials; unauthenticated requests get `40
 - **OPERATOR** manages counterparties, bonds and credit/notional, and may execute RFQs for any counterparty.
 - **TRADER** is bound to one counterparty by LEI (`counterparty-lei`). On `POST /rfqs` the counterparty is taken from the logged-in user: `counterpartyId` may be omitted, and any other counterparty's id is rejected with `403`.
 
-Users are configured under `rfq.security.users` in `application.properties`. Passwords are read from the environment; a user without a password cannot log in. Raw values are bcrypt-encoded at startup, or an encoded value such as `{bcrypt}$2a$10$...` can be supplied.
+Users are configured under `rfq.security.users` in `application.properties`. Passwords are read from the environment; a user without a password cannot log in. Raw values are bcrypt-encoded at startup, or a value pre-encoded with `{bcrypt}`, `{pbkdf2}`, `{scrypt}` or `{argon2}` (e.g. `{bcrypt}$2a$10$...`) can be supplied; any other value, including one starting with `{noop}`, is hashed as a literal secret.
+
+HTTP Basic sends credentials on every request, so the service must only be exposed over TLS (terminate TLS at a reverse proxy/ingress, or enable Spring Boot's `server.ssl.*` properties). Plain HTTP on port 8080 is meant for local development only.
+
+Counterparty LEIs are unique: `POST`/`PUT /counterparties` with an LEI that already belongs to another counterparty returns `409`, so a trader's LEI binding always resolves to a single counterparty.
 
 | User          | Role     | Counterparty                 | Password env var           |
 |---------------|----------|------------------------------|----------------------------|

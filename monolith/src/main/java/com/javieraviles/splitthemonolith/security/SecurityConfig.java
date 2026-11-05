@@ -3,6 +3,7 @@ package com.javieraviles.splitthemonolith.security;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,9 @@ import org.springframework.util.StringUtils;
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 	private static final Logger LOG = LoggerFactory.getLogger(SecurityConfig.class);
+
+	/** Only strong, salted hash formats may be supplied pre-encoded; anything else is hashed as-is. */
+	private static final Pattern PRE_ENCODED = Pattern.compile("^\\{(bcrypt|pbkdf2|scrypt|argon2)\\}.+");
 
 	private static final String OPERATOR = Role.OPERATOR.name();
 	private static final String TRADER = Role.TRADER.name();
@@ -87,7 +91,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 			LOG.warn("No password configured for rfq.security user '{}'; login is disabled for this user",
 					entry.getUsername());
 			encoded = encoder.encode(UUID.randomUUID().toString());
-		} else if (raw.startsWith("{")) {
+		} else if (PRE_ENCODED.matcher(raw).matches()) {
 			encoded = raw;
 		} else {
 			encoded = encoder.encode(raw);
