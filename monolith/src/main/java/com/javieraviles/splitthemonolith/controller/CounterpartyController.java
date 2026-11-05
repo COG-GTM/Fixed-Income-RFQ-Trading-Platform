@@ -1,6 +1,7 @@
 package com.javieraviles.splitthemonolith.controller;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import com.javieraviles.splitthemonolith.entity.Counterparty;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.CounterpartyRepository;
 import com.javieraviles.splitthemonolith.restclient.TradeConfirmationMicroserviceClient;
+import com.javieraviles.splitthemonolith.security.AccessPolicy;
 import com.javieraviles.splitthemonolith.service.TradeConfirmationService;
 
 @RestController
@@ -42,8 +44,14 @@ class CounterpartyController {
 	@Autowired
 	private TradeConfirmationMicroserviceClient confirmationMsClient;
 
+	@Autowired
+	private AccessPolicy accessPolicy;
+
 	@GetMapping("/counterparties")
 	List<Counterparty> getAll() {
+		if (!accessPolicy.isOperator()) {
+			return Collections.singletonList(accessPolicy.ownCounterparty());
+		}
 		return repository.findAll();
 	}
 
@@ -54,6 +62,7 @@ class CounterpartyController {
 
 	@GetMapping("/counterparties/{id}")
 	ResponseEntity<Counterparty> getOne(@PathVariable Long id) {
+		accessPolicy.checkCounterpartyAccess(id);
 		final Counterparty counterparty = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
 		return ResponseEntity.ok(counterparty);
 	}
