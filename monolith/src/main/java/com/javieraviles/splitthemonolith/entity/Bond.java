@@ -8,6 +8,7 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.validation.constraints.Digits;
 import javax.validation.constraints.PositiveOrZero;
 
 import com.javieraviles.splitthemonolith.exception.InsufficientNotionalException;
@@ -24,12 +25,14 @@ public class Bond {
 
 	private String issuer;
 
+	@Digits(integer = 3, fraction = 4)
 	@Column(precision = 7, scale = 4)
 	private BigDecimal couponRate;
 
 	private LocalDate maturityDate;
 
 	@PositiveOrZero
+	@Digits(integer = 17, fraction = 2)
 	@Column(precision = 19, scale = 2)
 	private BigDecimal availableNotional;
 

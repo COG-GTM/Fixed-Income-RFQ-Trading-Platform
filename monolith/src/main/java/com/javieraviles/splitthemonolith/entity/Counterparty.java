@@ -8,6 +8,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.PrePersist;
+import javax.validation.constraints.Digits;
 import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 
@@ -27,10 +28,12 @@ public class Counterparty {
 	private String lei;
 
 	@PositiveOrZero
+	@Digits(integer = 17, fraction = 2)
 	@Column(precision = 19, scale = 2)
 	private BigDecimal creditLimit;
 
 	@PositiveOrZero
+	@Digits(integer = 17, fraction = 2)
 	@Column(precision = 19, scale = 2)
 	private BigDecimal availableCredit;
 
