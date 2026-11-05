@@ -13,12 +13,12 @@ public class RfqDto {
 
 	private long id;
 
-	@NotNull
 	private long counterpartyId;
 
 	@NotNull
 	private long bondId;
 
+	@NotNull
 	@Positive
 	private BigDecimal notionalAmount;
 
@@ -27,6 +27,7 @@ public class RfqDto {
 
 	private RfqStatus status;
 
+	@NotNull
 	@Positive
 	private BigDecimal executionPrice;
 

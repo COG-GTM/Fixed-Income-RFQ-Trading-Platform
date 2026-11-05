@@ -23,7 +23,7 @@ public class Counterparty {
 	@Size(min = 3, max = 100)
 	private String name;
 
-	@Column(length = 24)
+	@Column(length = 24, unique = true)
 	private String lei;
 
 	@PositiveOrZero

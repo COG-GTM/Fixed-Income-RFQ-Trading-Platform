@@ -1,6 +1,7 @@
 package com.javieraviles.splitthemonolith;
 
 import static org.hamcrest.Matchers.containsString;
+import static com.javieraviles.splitthemonolith.TestAuth.OPERATOR;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -22,12 +23,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 public class IntegrationTest {
 
 	@Autowired
@@ -38,13 +41,13 @@ public class IntegrationTest {
 
 	@Test
 	public void givenOneCounterparty_whenGetCounterparties_thenReturnJsonArray() throws Exception {
-		mvc.perform(get("/counterparties").contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
+		mvc.perform(get("/counterparties").with(OPERATOR).contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].name", is("Acme Asset Management")));
 	}
 
 	@Test
 	public void givenOneBond_whenGetBonds_thenReturnJsonArray() throws Exception {
-		mvc.perform(get("/bonds").contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
+		mvc.perform(get("/bonds").with(OPERATOR).contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].isin", is("US912828YK15")));
 	}
 
@@ -56,11 +59,11 @@ public class IntegrationTest {
 				new BigDecimal("3.1250"), LocalDate.of(2032, 5, 15),
 				new BigDecimal("50000000.00"));
 
-		MvcResult resultCp = mvc.perform(post("/counterparties").content(asJsonString(cp))
+		MvcResult resultCp = mvc.perform(post("/counterparties").with(OPERATOR).content(asJsonString(cp))
 				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isCreated()).andReturn();
 
-		MvcResult resultBond = mvc.perform(post("/bonds").content(asJsonString(bond))
+		MvcResult resultBond = mvc.perform(post("/bonds").with(OPERATOR).content(asJsonString(bond))
 				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isCreated()).andReturn();
 
@@ -74,7 +77,7 @@ public class IntegrationTest {
 		rfq.setSide(Side.BUY);
 		rfq.setExecutionPrice(new BigDecimal("998750.00"));
 
-		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(post("/rfqs").with(OPERATOR).content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isCreated())
 				.andExpect(jsonPath("$.status", is("EXECUTED")));
 	}
@@ -87,11 +90,11 @@ public class IntegrationTest {
 				new BigDecimal("2.5000"), LocalDate.of(2031, 8, 15),
 				new BigDecimal("2000000.00"));
 
-		MvcResult resultCp = mvc.perform(post("/counterparties").content(asJsonString(cp))
+		MvcResult resultCp = mvc.perform(post("/counterparties").with(OPERATOR).content(asJsonString(cp))
 				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isCreated()).andReturn();
 
-		MvcResult resultBond = mvc.perform(post("/bonds").content(asJsonString(bond))
+		MvcResult resultBond = mvc.perform(post("/bonds").with(OPERATOR).content(asJsonString(bond))
 				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isCreated()).andReturn();
 
@@ -105,7 +108,7 @@ public class IntegrationTest {
 		rfq.setSide(Side.BUY);
 		rfq.setExecutionPrice(new BigDecimal("4993750.00"));
 
-		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(post("/rfqs").with(OPERATOR).content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest())
 				.andExpect(status().reason(containsString("Insufficient notional")));
 	}
@@ -118,11 +121,11 @@ public class IntegrationTest {
 				new BigDecimal("3.0000"), LocalDate.of(2033, 2, 15),
 				new BigDecimal("50000000.00"));
 
-		MvcResult resultCp = mvc.perform(post("/counterparties").content(asJsonString(cp))
+		MvcResult resultCp = mvc.perform(post("/counterparties").with(OPERATOR).content(asJsonString(cp))
 				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isCreated()).andReturn();
 
-		MvcResult resultBond = mvc.perform(post("/bonds").content(asJsonString(bond))
+		MvcResult resultBond = mvc.perform(post("/bonds").with(OPERATOR).content(asJsonString(bond))
 				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isCreated()).andReturn();
 
@@ -136,7 +139,7 @@ public class IntegrationTest {
 		rfq.setSide(Side.SELL);
 		rfq.setExecutionPrice(new BigDecimal("999000.00"));
 
-		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(post("/rfqs").with(OPERATOR).content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest())
 				.andExpect(status().reason(containsString("Insufficient credit")));
 	}
@@ -150,7 +153,7 @@ public class IntegrationTest {
 		rfq.setSide(Side.BUY);
 		rfq.setExecutionPrice(new BigDecimal("998750.00"));
 
-		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(post("/rfqs").with(OPERATOR).content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isNotFound());
 	}
 
@@ -163,7 +166,7 @@ public class IntegrationTest {
 		rfq.setSide(Side.BUY);
 		rfq.setExecutionPrice(new BigDecimal("998750.00"));
 
-		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(post("/rfqs").with(OPERATOR).content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isNotFound());
 	}
 

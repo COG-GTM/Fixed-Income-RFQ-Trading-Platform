@@ -3,6 +3,8 @@ package com.javieraviles.splitthemonolith.controller;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.validation.Valid;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,7 @@ import com.javieraviles.splitthemonolith.entity.Rfq;
 import com.javieraviles.splitthemonolith.exception.ResourceNotFoundException;
 import com.javieraviles.splitthemonolith.repository.RfqRepository;
 import com.javieraviles.splitthemonolith.saga.RFQExecutionSaga;
+import com.javieraviles.splitthemonolith.security.AccessPolicy;
 
 @RestController
 class RfqController {
@@ -28,20 +31,32 @@ class RfqController {
 	@Autowired
 	private RFQExecutionSaga rfqExecutionSaga;
 
+	@Autowired
+	private AccessPolicy accessPolicy;
+
 	@GetMapping("/rfqs")
 	List<RfqDto> getAll() {
-		final List<Rfq> rfqs = repository.findAll();
+		final List<Rfq> rfqs = accessPolicy.isOperator() ? repository.findAll()
+				: repository.findByCounterpartyId(accessPolicy.ownCounterparty().getId());
 		return rfqs.stream().map(this::toDto).collect(Collectors.toList());
 	}
 
 	@PostMapping("/rfqs")
-	ResponseEntity<RfqDto> createRfq(@RequestBody RfqDto newRfq) {
+	ResponseEntity<RfqDto> createRfq(@Valid @RequestBody RfqDto newRfq) {
+		if (!accessPolicy.isOperator()) {
+			final long ownId = accessPolicy.ownCounterparty().getId();
+			if (newRfq.getCounterpartyId() != 0) {
+				accessPolicy.checkCounterpartyAccess(newRfq.getCounterpartyId());
+			}
+			newRfq.setCounterpartyId(ownId);
+		}
 		return ResponseEntity.status(HttpStatus.CREATED).body(toDto(rfqExecutionSaga.executeRfq(newRfq)));
 	}
 
 	@GetMapping("/rfqs/{id}")
 	ResponseEntity<RfqDto> getOne(@PathVariable Long id) {
 		final Rfq rfq = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException());
+		accessPolicy.checkCounterpartyAccess(rfq.getCounterparty().getId());
 		return ResponseEntity.ok(toDto(rfq));
 	}
 
