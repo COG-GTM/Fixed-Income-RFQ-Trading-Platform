@@ -1,0 +1,56 @@
+// Architecture of the Fixed-Income RFQ Trading Platform monolith (master).
+// Render with ./render.sh (needs Graphviz `dot`).
+digraph architecture {
+  graph [rankdir=TB, fontname="DejaVu Sans", fontsize=18, labelloc=t, nodesep=0.45, ranksep=0.6, pad=0.3,
+         label="Fixed-Income RFQ Trading Platform (monolith/)"];
+  node  [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, fillcolor=white, color="#4a5568", margin="0.2,0.1"];
+  edge  [fontname="DejaVu Sans", fontsize=13, color="#4a5568"];
+
+  client [label="REST client\n(curl / Postman / MockMvc IntegrationTest)", fillcolor="#edf2f7"];
+
+  subgraph cluster_app {
+    label="split-the-monolith app :8080\nJava 11, Spring Boot 2.2.6, Spring MVC + Data JPA";
+    style="rounded,filled"; fillcolor="#f7fafc"; color="#2b6cb0"; fontsize=16;
+
+    subgraph cluster_web {
+      label="controller/"; style="rounded,dashed"; color="#a0aec0";
+      cpc  [label="CounterpartyController\n/counterparties\nGET POST PUT PATCH DELETE", fillcolor="#ebf8ff"];
+      bc   [label="BondController\n/bonds\nGET POST PUT PATCH DELETE", fillcolor="#ebf8ff"];
+      rfqc [label="RfqController\n/rfqs  GET POST DELETE\n(RfqDto in/out)", fillcolor="#ebf8ff"];
+    }
+
+    saga [label="RFQExecutionSaga.executeRfq()\n@Transactional:\n1 deduct bond notional\n2 deduct counterparty credit\n3 save RFQ as EXECUTED", fillcolor="#fefcbf"];
+
+    toggle [label="use.confirmation.service\n(default false)", shape=diamond, style=filled, fillcolor="#fff5f5", fontsize=14];
+    tcs  [label="TradeConfirmationService\n(logs the confirmation)", fillcolor="#f0fff4"];
+    tcmc [label="TradeConfirmation-\nMicroserviceClient\nRestTemplate + HttpClient", fillcolor="#f0fff4"];
+
+    seed [label="SplitTheMonolithApplication\nCommandLineRunner seeds Acme,\nUST 2.75% 2030, one EXECUTED RFQ", fillcolor="#faf5ff"];
+
+    subgraph cluster_repo {
+      label="repository/ (Spring Data JPA) + entity/"; style="rounded,dashed"; color="#a0aec0";
+      cpr  [label="CounterpartyRepository\nCounterparty: lei, creditLimit,\navailableCredit"];
+      br   [label="BondRepository\nBond: isin, couponRate,\nmaturityDate, availableNotional"];
+      rfqr [label="RfqRepository\nRfq: side, status,\nnotionalAmount, executionPrice"];
+    }
+    {rank=same; cpr; br; rfqr}
+  }
+
+  h2 [label="H2 in-memory database\ntables counterparties, bonds, rfqs\n(schema created by Hibernate, lost on restart)", shape=cylinder, fillcolor="#e6fffa"];
+  ext [label="ConfirmationMS (not in this repo)\nPOST {confirmationms.url}\nconfirmations/\n(default http://localhost:8070/)", style="rounded,dashed,filled", fillcolor="#fffaf0", color="#c05621"];
+
+  client -> cpc; client -> bc; client -> rfqc;
+  rfqc -> saga [label="POST /rfqs"];
+  rfqc -> rfqr [label="GET / DELETE"];
+  saga -> br  [label="deductNotional"];
+  saga -> cpr [label="deductCredit"];
+  saga -> rfqr [label="save"];
+  bc  -> br [label="CRUD, PATCH ADD/DEDUCT"];
+  cpc -> cpr [label="CRUD, PATCH ADD/DEDUCT"];
+  cpc -> toggle [label="PATCH ADD credit"];
+  toggle -> tcs  [label="false"];
+  toggle -> tcmc [label="true"];
+  tcmc -> ext [label="HTTP POST JSON\nTradeConfirmationDto", style=dashed, color="#c05621"];
+  seed -> cpr [style=dotted]; seed -> br [style=dotted]; seed -> rfqr [style=dotted];
+  cpr -> h2; br -> h2; rfqr -> h2;
+}
