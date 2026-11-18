@@ -8,11 +8,41 @@ Technologies used:
  - Maven
 
 - [Fixed-Income RFQ Trading Platform](#fixed-income-rfq-trading-platform)
+  - [Architecture](#architecture)
+  - [Project Layout](#project-layout)
   - [Domain Entities](#domain-entities)
   - [REST Endpoints](#rest-endpoints)
   - [Seed Data](#seed-data)
   - [Running the Application](#running-the-application)
+  - [Configuration](#configuration)
   - [Testing](#testing)
+
+## Architecture
+
+See [docs/architecture.md](docs/architecture.md) for the components, data model, request flows and configuration.
+
+![Architecture diagram](docs/diagrams/architecture.png)
+
+## Project Layout
+
+```
+monolith/                       Spring Boot application (the only module)
+  pom.xml                       Maven build (Spring Boot 2.2.6, Java 11)
+  mvnw, .mvn/                   Maven wrapper
+  src/main/java/com/javieraviles/splitthemonolith/
+    controller/                 REST controllers for counterparties, bonds, RFQs
+    saga/                       RFQExecutionSaga (transactional RFQ execution)
+    entity/                     JPA entities and enums
+    repository/                 Spring Data JPA repositories
+    dto/                        RfqDto, TradeConfirmationDto, OperationEnum
+    service/, restclient/       Trade confirmation (log or external HTTP service)
+    exception/                  404 / 400 exceptions
+  src/main/resources/application.properties
+  src/test/java/.../IntegrationTest.java
+docs/
+  architecture.md               Architecture overview
+  diagrams/                     Graphviz source, render script, PNG/SVG
+```
 
 ## Domain Entities
 
@@ -41,7 +71,7 @@ Counterparty and Bond must be in place before executing an RFQ. If the bond has 
 
 A PATCH method endpoint exists for both `Counterparty` and `Bond` controllers to update credit / notional inventory.
 
-A trade confirmation is sent to a counterparty whenever credit is added, handled by `TradeConfirmationService.java`.
+Whenever credit is added to a counterparty, a trade confirmation is produced. By default `TradeConfirmationService.java` only logs it; with `use.confirmation.service=true` it is POSTed to an external confirmation service instead (see [Configuration](#configuration)).
 
 ## REST Endpoints
 
@@ -71,14 +101,35 @@ On startup the application loads:
 - **Bond**: US Treasury 2.75% 11/15/2030 (ISIN: US912828YK15, available notional: $100,000,000)
 - **RFQ**: BUY $5,000,000 notional at $4,987,500 — status EXECUTED
 
+All entities share one ID sequence, so on a fresh start the counterparty is `/counterparties/1`, the bond is `/bonds/2` and the RFQ is `/rfqs/3`. The seed RFQ is inserted directly and does not reduce the seeded credit or notional.
+
 ## Running the Application
+
+Requires a JDK 11 or newer (the build targets Java 11; tests also pass on JDK 17). The Maven wrapper downloads Maven 3.6.3 on first use.
 
 ```bash
 cd monolith
 ./mvnw spring-boot:run
 ```
 
-The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints.
+The application starts on port `8080`. Hit `/counterparties`, `/bonds`, and `/rfqs` to verify the REST endpoints. Data lives in an in-memory H2 database and is reset on every restart; the H2 console is at `/h2-console`.
+
+Example RFQ against the seed data:
+
+```bash
+curl -X POST localhost:8080/rfqs -H 'Content-Type: application/json' \
+  -d '{"counterpartyId":1,"bondId":2,"notionalAmount":1000000,"side":"BUY","executionPrice":995000}'
+```
+
+## Configuration
+
+Set in `monolith/src/main/resources/application.properties`:
+
+| Property | Default | Effect |
+|----------|---------|--------|
+| `server.port` | `8080` | HTTP port |
+| `use.confirmation.service` | `false` | When `true`, credit-added confirmations are POSTed to the external confirmation service instead of logged |
+| `confirmationms.url` | `http://localhost:8070/` | Base URL of that service (not part of this repository) |
 
 ## Testing
 
@@ -87,4 +138,4 @@ cd monolith
 ./mvnw clean test
 ```
 
-See `IntegrationTest.java` for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
+See `IntegrationTest.java` (7 tests) for the full set of use-cases covering RFQ execution, insufficient notional/credit, and missing counterparty/bond scenarios.
