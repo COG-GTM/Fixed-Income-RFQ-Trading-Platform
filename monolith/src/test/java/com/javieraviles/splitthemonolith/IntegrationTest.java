@@ -1,5 +1,6 @@
 package com.javieraviles.splitthemonolith;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -77,6 +78,11 @@ public class IntegrationTest {
 		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isCreated())
 				.andExpect(jsonPath("$.status", is("EXECUTED")));
+
+		final MvcResult reloadedBond = mvc.perform(get("/bonds/" + bondId)).andExpect(status().isOk()).andReturn();
+		assertThat(decimalField(reloadedBond, "availableNotional")).isEqualByComparingTo("49000000.00");
+		final MvcResult reloadedCp = mvc.perform(get("/counterparties/" + cpId)).andExpect(status().isOk()).andReturn();
+		assertThat(decimalField(reloadedCp, "availableCredit")).isEqualByComparingTo("19001250.00");
 	}
 
 	@Test
@@ -139,6 +145,20 @@ public class IntegrationTest {
 		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest())
 				.andExpect(status().reason(containsString("Insufficient credit")));
+
+		final MvcResult reloadedBond = mvc.perform(get("/bonds/" + bondId)).andExpect(status().isOk()).andReturn();
+		assertThat(decimalField(reloadedBond, "availableNotional")).isEqualByComparingTo("50000000.00");
+	}
+
+	@Test
+	public void whenCreateCounterparty_withoutAvailableCredit_thenDefaultsToCreditLimit() throws Exception {
+		final String json = "{\"name\":\"Vanguard Group\",\"lei\":\"549300VANGUARD00001\",\"creditLimit\":7500000.00}";
+
+		final MvcResult result = mvc.perform(post("/counterparties").content(json)
+				.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON))
+				.andExpect(status().isCreated()).andReturn();
+
+		assertThat(decimalField(result, "availableCredit")).isEqualByComparingTo("7500000.00");
 	}
 
 	@Test
@@ -165,6 +185,10 @@ public class IntegrationTest {
 
 		mvc.perform(post("/rfqs").content(asJsonString(rfq)).contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)).andExpect(status().isNotFound());
+	}
+
+	private static BigDecimal decimalField(final MvcResult result, final String field) throws Exception {
+		return MAPPER.readTree(result.getResponse().getContentAsString()).get(field).decimalValue();
 	}
 
 	private static long extractId(final MvcResult result) throws Exception {

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
@@ -33,6 +34,8 @@ import com.javieraviles.splitthemonolith.saga.RFQExecutionSaga;
 @ExtendWith(MockitoExtension.class)
 class RfqControllerTest {
 
+	private static final Instant CREATED_AT = Instant.parse("2026-11-23T14:30:00Z");
+
 	@Mock
 	private RfqRepository repository;
 
@@ -55,6 +58,7 @@ class RfqControllerTest {
 		rfq = new Rfq(cp, bond, new BigDecimal("5000000.00"), Side.SELL, RfqStatus.EXECUTED,
 				new BigDecimal("4987500.00"));
 		ReflectionTestUtils.setField(rfq, "id", 42L);
+		ReflectionTestUtils.setField(rfq, "createdAt", CREATED_AT);
 	}
 
 	private static void assertMapped(final RfqDto dto) {
@@ -65,6 +69,7 @@ class RfqControllerTest {
 		assertThat(dto.getSide()).isEqualTo(Side.SELL);
 		assertThat(dto.getStatus()).isEqualTo(RfqStatus.EXECUTED);
 		assertThat(dto.getExecutionPrice()).isEqualByComparingTo("4987500.00");
+		assertThat(dto.getCreatedAt()).isEqualTo(CREATED_AT);
 	}
 
 	@Test

@@ -1,47 +1,47 @@
 package com.javieraviles.splitthemonolith.restclient;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.math.BigDecimal;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
 import com.javieraviles.splitthemonolith.dto.TradeConfirmationDto;
 
-@ExtendWith(MockitoExtension.class)
 class TradeConfirmationMicroserviceClientTest {
 
-	@Mock
-	private RestTemplate restTemplate;
-
-	@InjectMocks
 	private TradeConfirmationMicroserviceClient client;
+	private MockRestServiceServer server;
+
+	@BeforeEach
+	void setUp() {
+		final RestTemplate restTemplate = new RestTemplate();
+		server = MockRestServiceServer.bindTo(restTemplate).build();
+		client = new TradeConfirmationMicroserviceClient();
+		ReflectionTestUtils.setField(client, "restTemplate", restTemplate);
+		ReflectionTestUtils.setField(client, "confirmationMsBaseUri", "http://localhost:8070/");
+	}
 
 	@Test
-	@SuppressWarnings("unchecked")
-	void sendConfirmation_postsJsonToConfirmationsEndpoint() {
-		ReflectionTestUtils.setField(client, "confirmationMsBaseUri", "http://localhost:8070/");
-		final TradeConfirmationDto confirmation = new TradeConfirmationDto("Acme Asset Management",
-				new BigDecimal("250000.00"));
+	void sendConfirmation_postsSerializedJsonToConfirmationsEndpoint() {
+		server.expect(requestTo("http://localhost:8070/confirmations/"))
+				.andExpect(method(HttpMethod.POST))
+				.andExpect(content().contentType(MediaType.APPLICATION_JSON))
+				.andExpect(content().json(
+						"{\"counterpartyName\":\"Acme Asset Management\",\"creditAmount\":250000.00}", true))
+				.andRespond(withSuccess());
 
-		client.sendConfirmation(confirmation);
+		client.sendConfirmation(new TradeConfirmationDto("Acme Asset Management", new BigDecimal("250000.00")));
 
-		final ArgumentCaptor<HttpEntity<TradeConfirmationDto>> captor = ArgumentCaptor.forClass(HttpEntity.class);
-		verify(restTemplate).exchange(eq("http://localhost:8070/confirmations/"), eq(HttpMethod.POST),
-				captor.capture(), eq(String.class));
-		assertThat(captor.getValue().getBody()).isSameAs(confirmation);
-		assertThat(captor.getValue().getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+		server.verify();
 	}
 }
